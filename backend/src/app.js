@@ -20,8 +20,8 @@ function createApp() {
     });
   });
 
-  // Phase 2 onwards mounts the API here:
-  // app.use('/api', require('./routes'));
+  // The API surface (doc 03).
+  app.use('/api', require('./routes'));
 
   // Order matters: unmatched routes first, then the central error handler last.
   app.use(notFound);

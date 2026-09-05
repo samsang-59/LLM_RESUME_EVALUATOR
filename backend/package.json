@@ -8,12 +8,14 @@
     "start": "node --disable-warning=ExperimentalWarning server.js",
     "dev": "node --disable-warning=ExperimentalWarning --watch server.js",
     "migrate": "node --disable-warning=ExperimentalWarning scripts/migrate.js",
-    "test": "node --disable-warning=ExperimentalWarning node_modules/jest/bin/jest.js --runInBand"
+    "test": "node --disable-warning=ExperimentalWarning node_modules/jest/bin/jest.js --runInBand",
+    "test:report": "node scripts/test-report.js"
   },
   "license": "MIT",
   "dependencies": {
     "dotenv": "^17.4.2",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "jest": "^30.5.1",
