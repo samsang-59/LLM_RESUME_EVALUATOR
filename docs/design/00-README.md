@@ -18,6 +18,7 @@ result. Designed layer by layer, backend first, then frontend.
 | 08 | [Frontend Screens](08-frontend.md) | HR dashboard, 5 screens (Model A) |
 | 09 | [Authentication](09-authentication.md) | JWT (HR) + API key (ATS), across all layers |
 | 10 | [Frontend Architecture](10-frontend-architecture.md) | components, API layer, routing, state, auth handling |
+| 11 | [Phase Plan](11-phase-plan.md) | the 8 build phases and the test round that closes each one |
 
 ## Tech stack
 - **Backend:** Node.js + Express
@@ -34,7 +35,8 @@ result. Designed layer by layer, backend first, then frontend.
 - **Async + webhook, read-door as backup** — nothing is lost if delivery fails.
 
 ## Status
-Design complete (all 10 docs). Next phase: implementation, phase by phase.
+Design complete (docs 01-10). Implementation is underway against the
+[phase plan](11-phase-plan.md) - phases 0 and 1 are done.
 
 ## Parked / harden later
 - Reject / send-email action on a result

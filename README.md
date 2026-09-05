@@ -2,7 +2,9 @@
 
 > A backend service that scores candidate resumes against a job's requirements using a hybrid **LLM + deterministic scoring** pipeline — built for ATS-to-ATS integration, not manual resume screening.
 
-[![Status](https://img.shields.io/badge/status-design%20complete-blue)](docs/design/00-README.md)
+[![Status](https://img.shields.io/badge/status-backend%20in%20progress-blue)](#project-status)
+[![Phase](https://img.shields.io/badge/phase-1%20of%207%20complete-brightgreen)](docs/design/11-phase-plan.md)
+[![Tests](https://img.shields.io/badge/tests-70%20passing-brightgreen)](#running-the-backend)
 [![Node.js](https://img.shields.io/badge/backend-Node.js%20%2B%20Express-339933?logo=node.js&logoColor=white)](#tech-stack)
 [![OpenAI](https://img.shields.io/badge/LLM-OpenAI-412991?logo=openai&logoColor=white)](#tech-stack)
 [![SQL](https://img.shields.io/badge/database-SQL-4479A1?logo=postgresql&logoColor=white)](#tech-stack)
@@ -42,11 +44,12 @@ The design leans on one rule throughout: **the LLM handles language, code handle
 
 | Layer | Choice |
 |---|---|
-| Backend | Node.js + Express |
+| Backend | Node.js + Express 5 (CommonJS) |
 | LLM | OpenAI (`openai` SDK), structured output via Zod-style schema validation |
-| Database | SQL (PostgreSQL recommended) — 3 core tables: `jobs`, `resumes`, `evaluations` |
+| Database | SQL — `node:sqlite` today behind a Postgres-shaped query layer, so the move to PostgreSQL touches one file. 4 tables: `users`, `jobs`, `resumes`, `evaluations` |
 | Frontend | React — HR-only dashboard for creating jobs and reviewing candidates |
 | Auth | JWT for HR (browser), API key for the ATS (system-to-system) |
+| Tests | Jest + supertest — the LLM is mocked, so tests stay deterministic and free |
 
 ## API surface
 
@@ -60,9 +63,77 @@ The design leans on one rule throughout: **the LLM handles language, code handle
 | `GET` | `/api/evaluations/:id` | Full detail of a single candidate's result |
 | `POST` | `/api/auth/register` / `/api/auth/login` | HR account auth (JWT) |
 
+## Running the backend
+
+Requires **Node.js 22+** (the database layer uses the built-in `node:sqlite` module).
+
+```bash
+cd backend
+npm install
+cp .env.example .env      # fill in secrets; .env is git-ignored
+npm run migrate           # creates the 4 tables
+npm run dev               # http://localhost:4000
+```
+
+```bash
+curl http://localhost:4000/health
+# {"status":"ok","db":"up","uptime":1.23}
+```
+
+| Command | Does |
+|---|---|
+| `npm run dev` | Start with `--watch` (auto-restart on change) |
+| `npm start` | Start the server |
+| `npm run migrate` | Apply pending migrations (idempotent — safe to re-run) |
+| `npm test` | Run the full Jest suite |
+
+Tests run against a throwaway in-memory database configured by `.env.test`, so they
+never touch your development data and never call the real OpenAI API.
+
+## Project structure
+
+```
+backend/
+├── migrations/sqlite/     4 numbered SQL files — users, jobs, resumes, evaluations
+├── scripts/migrate.js     CLI runner for the migrations
+├── src/
+│   ├── config/            env (the one place reading process.env), db, migrator
+│   ├── routes/            ── phase 2+
+│   ├── validators/        ── phase 2+
+│   ├── controllers/       ── phase 2+
+│   ├── services/          ── phase 3+ (the pipeline)
+│   ├── repositories/      ── phase 2+ (the only layer that touches SQL)
+│   ├── middlewares/       notFound + central error handler
+│   ├── utils/errors.js    typed AppError classes → HTTP status codes
+│   └── app.js             the Express app factory (no port binding)
+├── server.js              entry point — the only thing that listens
+└── tests/                 one suite per phase
+```
+
+Two decisions worth calling out, because everything downstream depends on them:
+
+- **`app.js` builds the app, `server.js` runs it.** Tests mount the app with supertest
+  without ever binding a port.
+- **Repositories will write Postgres-style SQL (`$1`, `$2`) and `await` every query**,
+  even though `node:sqlite` is synchronous. `config/db.js` translates. Swapping in
+  PostgreSQL later means rewriting that one file, not the repository layer.
+
 ## Project status
 
-**Design phase complete.** Every layer of the backend and frontend — schema, routing, validation, controllers, the service pipeline, the repository layer, authentication, and the React architecture — has been fully specified across [`docs/design/`](docs/design/00-README.md) before a line of implementation code is written. Implementation proceeds phase by phase against these blueprints.
+**Design complete; backend implementation underway — phases 0 and 1 of 7 are done, 70 tests passing.**
+
+Every layer of the backend and frontend — schema, routing, validation, controllers, the service pipeline, the repository layer, authentication, and the React architecture — was fully specified across [`docs/design/`](docs/design/00-README.md) before a line of implementation code was written. Implementation now proceeds phase by phase against those blueprints, and **no phase is considered done until its own test round passes.**
+
+| Phase | Scope | State |
+|---|---|---|
+| 0 | Express skeleton, layered folders, env config, DB connection helper, `/health` | ✅ done |
+| 1 | Migrations + the 4 tables, with every constraint the design calls for | ✅ done |
+| 2 | Jobs — the first full vertical slice (router → validator → controller → service → repository) | next |
+| 3 | The evaluation pipeline — async submit, background run, webhook delivery | planned |
+| 4 | Results + filters | planned |
+| 5 | Auth — register/login, JWT + API-key guards | planned |
+| 6 | React frontend | planned |
+| 7 | Hardening — webhook SSRF, refresh tokens, per-ATS keys | planned |
 
 📄 **[Read the full design doc set →](docs/design/00-README.md)**
 
@@ -78,13 +149,17 @@ The design leans on one rule throughout: **the LLM handles language, code handle
 | 08 | [Frontend Screens](docs/design/08-frontend.md) | The HR dashboard, 5 screens |
 | 09 | [Authentication](docs/design/09-authentication.md) | JWT + API key, across every layer |
 | 10 | [Frontend Architecture](docs/design/10-frontend-architecture.md) | Components, API layer, routing, state |
+| 11 | [Phase Plan](docs/design/11-phase-plan.md) | The 8 build phases and the test round that closes each one |
 
 ## Roadmap
 
 - [x] Design: data model, API surface, service pipeline, auth, frontend architecture
-- [ ] Backend implementation (Router → Validators → Controller → Service → Repository)
-- [ ] Frontend implementation against the finished backend
-- [ ] Hardening: webhook SSRF protection, refresh tokens, per-ATS API keys
+- [x] Phase 0 — project skeleton, config, DB helper, health check
+- [x] Phase 1 — schema and migrations (`users`, `jobs`, `resumes`, `evaluations`)
+- [ ] Phases 2–5 — backend implementation (Router → Validators → Controller → Service → Repository)
+- [ ] Phase 6 — frontend implementation against the finished backend
+- [ ] Phase 7 — hardening: webhook SSRF protection, refresh tokens, per-ATS API keys
+- [ ] Swap `node:sqlite` for PostgreSQL (one file: `src/config/db.js`)
 
 ## Author
 

@@ -1,0 +1,22 @@
+{
+  "name": "resume-evaluator-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LLM Resume Evaluator - backend service",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch server.js",
+    "migrate": "node --disable-warning=ExperimentalWarning scripts/migrate.js",
+    "test": "node --disable-warning=ExperimentalWarning node_modules/jest/bin/jest.js --runInBand"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "jest": "^30.5.1",
+    "supertest": "^7.2.2"
+  }
+}
