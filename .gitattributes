@@ -1,0 +1,12 @@
+# Line endings are decided here, not by each machine's core.autocrlf.
+# The repo already stores LF; this keeps a fresh clone LF on Windows too, so
+# nobody sees a whole-file diff just for checking the project out.
+* text=auto eol=lf
+
+# Files that must never be line-ending converted.
+*.pdf  binary
+*.docx binary
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.sqlite binary

@@ -12,3 +12,6 @@ uploads/
 coverage/
 .vscode/
 .idea/
+
+# Personal notes, kept locally.
+DEBUGGING_GUIDE.md
