@@ -11,6 +11,7 @@ const { jobIdParamSchema } = require('../validators/jobValidator');
 const {
   resumeFileSchema,
   submitEvaluationSchema,
+  listEvaluationsQuerySchema,
 } = require('../validators/evaluationValidator');
 const evaluationController = require('../controllers/evaluationController');
 
@@ -35,6 +36,19 @@ router.post(
   evaluationController.submitEvaluation
 );
 
-// 5. GET / (all candidates for this job) arrives in Phase 4, with its filters.
+// 5. All candidates evaluated for this job - the main HR review screen.
+//
+// No apiKeyGuard: that key belongs to the ATS submitting resumes, not to HR reading
+// results. This is an HR door, and Phase 5 puts the JWT guard on it.
+//
+// Two guards, both shape-only: the :jobId format, then the three optional filters
+// (doc 07). Whether the job exists is the service's lookup, so a malformed id is a
+// 400 here and an unknown one is a 404 from underneath.
+router.get(
+  '/',
+  validate.params(jobIdParamSchema),
+  validate.query(listEvaluationsQuerySchema),
+  evaluationController.listEvaluationsForJob
+);
 
 module.exports = router;

@@ -7,6 +7,8 @@
 //                      answer 202. Fast, and it never calls the LLM.
 //   runPipeline()      the background half. parse -> extract -> match -> score ->
 //                      store -> webhook.
+//   getById()          the read doors (Phase 4): one result, or every result for a
+//   listByJob()        job. Both existence checks live here, not in the guard (doc 05).
 //
 // The split is the whole point of the async design: the pipeline takes seconds
 // (two LLM calls), and nobody should hold an HTTP connection open for that (doc 05).
@@ -160,5 +162,53 @@ async function runPipeline({ evaluation, job, stored, fileKind, buffer }) {
   });
 }
 
-// listByJob / getById arrive in Phase 4 with the read doors.
-module.exports = { startEvaluation, runPipeline, awaitPendingRuns, inFlight };
+/* ------------------------------------------------------------------ *
+ * The read doors (doc 03 #5 and #6) - how HR, and the ATS, look at results
+ * ------------------------------------------------------------------ */
+
+/**
+ * One evaluation, with its candidate.
+ *
+ * This is both the HR "candidate detail" screen and the backup behind the webhook:
+ * if delivery never got through, the caller pulls the result from here instead
+ * (doc 06). A `processing` row is a perfectly good answer - the caller was told 202
+ * and this is how they find out where it got to.
+ *
+ * @throws {NotFoundError} no such evaluation -> the controller's 404
+ */
+async function getById(id) {
+  const evaluation = await evaluationRepository.getEvaluationById(id);
+  if (!evaluation) throw new NotFoundError(`Evaluation ${id} not found`);
+  return evaluation;
+}
+
+/**
+ * Every candidate evaluated for one job - the main HR review screen.
+ *
+ * The job lookup comes first so an unknown job is a 404 rather than a convincing
+ * empty list; "no candidates yet" and "no such job" are different answers and HR
+ * deserves to be told which one it is. A real job with nobody in it returns [].
+ *
+ * Filters (already checked by the guard) only ever narrow. With none, the list is
+ * everyone, near-misses included - that is the point of storing the percentage even
+ * when a gate eliminates someone (doc 06).
+ *
+ * @param {number} jobId
+ * @param {{eligible?: boolean, minPercentage?: number, minExperience?: number}} [filters]
+ * @throws {NotFoundError} no such job
+ */
+async function listByJob(jobId, filters = {}) {
+  const job = await jobRepository.getJobById(jobId);
+  if (!job) throw new NotFoundError(`Job ${jobId} not found`);
+
+  return evaluationRepository.listEvaluationsByJob(jobId, filters);
+}
+
+module.exports = {
+  startEvaluation,
+  runPipeline,
+  getById,
+  listByJob,
+  awaitPendingRuns,
+  inFlight,
+};

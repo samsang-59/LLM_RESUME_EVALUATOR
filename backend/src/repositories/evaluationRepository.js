@@ -8,8 +8,13 @@
 //   updateEvaluation()  fills the row in as the pipeline progresses: the resume link,
 //                       then the result or the failure, then the webhook outcome.
 //
-// The two READS (getEvaluationById / listEvaluationsByJob, both JOINing the resume)
-// belong to the read doors and arrive with them in Phase 4.
+// Phase 4 adds the two READS the HR screens are built on:
+//
+//   getEvaluationById()     one candidate's full result
+//   listEvaluationsByJob()  every candidate for a job, with optional filters
+//
+// Both LEFT JOIN the resume, so the candidate's details come back in the SAME trip
+// to the database rather than a second query (doc 07).
 const db = require('../config/db');
 
 /** An evaluations row -> the object the rest of the app uses. */
@@ -109,6 +114,130 @@ async function updateEvaluation(id, changes) {
   return toEvaluation(rows[0]);
 }
 
-// getEvaluationById / listEvaluationsByJob (both JOIN resumes) arrive in Phase 4,
-// together with the read doors that need them.
-module.exports = { createEvaluation, updateEvaluation, toEvaluation };
+/* ------------------------------------------------------------------ *
+ * The reads (doc 07) - evaluation + candidate, in one query
+ * ------------------------------------------------------------------ */
+
+/**
+ * The columns the JOIN pulls from `resumes`, aliased so they cannot collide with
+ * the evaluation's own (`id` and `name` exist on both sides).
+ *
+ * Two columns are deliberately NOT selected: `extracted_text`, which is the whole
+ * resume and would bloat every list row for no reader benefit, and `file_path`,
+ * which is a server-side disk path and none of an API caller's business.
+ */
+const CANDIDATE_COLUMNS = `
+  r.id                     AS candidate_id,
+  r.name                   AS candidate_name,
+  r.phone                  AS candidate_phone,
+  r.email                  AS candidate_email,
+  r.listed_skills          AS candidate_listed_skills,
+  r.used_skills            AS candidate_used_skills,
+  r.total_experience_years AS candidate_total_experience_years,
+  r.uploaded_at            AS candidate_uploaded_at`;
+
+/**
+ * A joined row -> the evaluation, with the candidate nested inside it.
+ *
+ * `candidate` is null when there is no resume yet. That is a real state, not an
+ * error: the evaluation row is born before extraction runs (doc 07), so a
+ * `processing` row - or one that failed on an unreadable file - genuinely has no
+ * candidate facts attached. The nesting keeps the two concerns visibly separate:
+ * the evaluation is the verdict, the candidate is the person.
+ */
+function toEvaluationWithCandidate(row) {
+  if (!row) return null;
+
+  const evaluation = toEvaluation(row);
+  evaluation.candidate =
+    row.candidate_id === null || row.candidate_id === undefined
+      ? null
+      : {
+          resumeId: row.candidate_id,
+          name: row.candidate_name,
+          phone: row.candidate_phone,
+          email: row.candidate_email,
+          listedSkills: parseArray(row.candidate_listed_skills),
+          usedSkills: parseArray(row.candidate_used_skills),
+          totalExperienceYears: row.candidate_total_experience_years,
+          uploadedAt: row.candidate_uploaded_at,
+        };
+
+  return evaluation;
+}
+
+/**
+ * SELECT one evaluation with its candidate. Backs GET /api/evaluations/:id, which
+ * is also the safety net behind the webhook: if delivery never landed, this is how
+ * the caller still gets their result (doc 06).
+ *
+ * A LEFT JOIN, not an inner one. An inner join would silently hide every evaluation
+ * that has no resume row yet - which is exactly the `processing` row the caller
+ * polls for after their 202.
+ *
+ * @returns {Promise<object|null>} null when the id is unknown; the 404 is the service's call
+ */
+async function getEvaluationById(id) {
+  const { rows } = await db.query(
+    `SELECT e.*, ${CANDIDATE_COLUMNS}
+       FROM evaluations e
+       LEFT JOIN resumes r ON r.id = e.resume_id
+      WHERE e.id = $1`,
+    [id]
+  );
+  return toEvaluationWithCandidate(rows[0]);
+}
+
+/**
+ * SELECT every evaluation for one job, newest-and-best first, optionally narrowed.
+ *
+ * The filters are doc 07's three, and every one of them is a plain scalar column -
+ * no JSON is queried, which is what lets the skill bags stay read-whole JSON (doc 02).
+ * There is deliberately no skill filter: an eligible candidate already has the
+ * required skills, so it would be redundant.
+ *
+ * Each filter is added as a bound parameter, never interpolated, and an absent
+ * filter adds no clause at all - so the default really is "all candidates for this
+ * job, near-misses included".
+ *
+ * One consequence worth naming: a row still `processing` has a NULL percentage and
+ * NULL experience, so any numeric filter drops it. That is the honest answer -
+ * a filter asks "who is at least 70%", and we do not yet know.
+ *
+ * @param {number} jobId
+ * @param {{eligible?: boolean, minPercentage?: number, minExperience?: number}} [filters]
+ */
+async function listEvaluationsByJob(jobId, filters = {}) {
+  const where = ['e.job_id = $1'];
+  const params = [jobId];
+
+  const add = (clause, value) => {
+    params.push(value);
+    where.push(clause.replace('?', `$${params.length}`));
+  };
+
+  if (filters.eligible !== undefined) add('e.eligible = ?', Number(Boolean(filters.eligible)));
+  if (filters.minPercentage !== undefined) add('e.overall_percentage >= ?', filters.minPercentage);
+  if (filters.minExperience !== undefined) {
+    add('e.candidate_experience_years >= ?', filters.minExperience);
+  }
+
+  const { rows } = await db.query(
+    `SELECT e.*, ${CANDIDATE_COLUMNS}
+       FROM evaluations e
+       LEFT JOIN resumes r ON r.id = e.resume_id
+      WHERE ${where.join(' AND ')}
+      ORDER BY e.overall_percentage DESC NULLS LAST, e.created_at DESC, e.id DESC`,
+    params
+  );
+  return rows.map(toEvaluationWithCandidate);
+}
+
+module.exports = {
+  createEvaluation,
+  updateEvaluation,
+  getEvaluationById,
+  listEvaluationsByJob,
+  toEvaluation,
+  toEvaluationWithCandidate,
+};

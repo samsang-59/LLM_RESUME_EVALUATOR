@@ -16,8 +16,8 @@ router.get('/', jobController.listJobs);
 // 4. One job
 router.get('/:jobId', validate.params(jobIdParamSchema), jobController.getJob);
 
-// 2 (+5 in Phase 4). Everything that hangs off a job: POST a resume for it, and
-// later GET its candidates. A separate router so this file stays about jobs.
+// 2 and 5. Everything that hangs off a job: POST a resume for it, and GET its
+// candidates. A separate router so this file stays about jobs.
 router.use('/:jobId/evaluations', require('./evaluationRoutes'));
 
 module.exports = router;

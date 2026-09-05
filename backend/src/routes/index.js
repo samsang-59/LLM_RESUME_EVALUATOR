@@ -3,8 +3,11 @@ const express = require('express');
 
 const router = express.Router();
 
+// Everything job-scoped, including the evaluations that hang off a job
+// (/jobs/:jobId/evaluations - mounted inside jobRoutes so the :jobId stays in the URL).
 router.use('/jobs', require('./jobRoutes'));
-// Phase 3: router.use('/jobs/:jobId/evaluations', ...) and /evaluations
+// The one evaluation door addressed by its own id rather than by its job.
+router.use('/evaluations', require('./evaluationDetailRoutes'));
 // Phase 5: router.use('/auth', ...)
 
 module.exports = router;

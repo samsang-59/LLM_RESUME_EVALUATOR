@@ -1,4 +1,7 @@
-// Guard 1 from doc 04 - the resume submission door.
+// The guards on every evaluation door.
+//
+// Guard 1 from doc 04 - the resume submission door - plus the Phase 4 read doors:
+// the :id path check and the three list filters.
 //
 // Everything here is SHAPE AND RULES only. Whether the job exists is a database
 // lookup, and that belongs to the service (doc 04/05). What this guard buys us is
@@ -76,4 +79,75 @@ const submitEvaluationSchema = z.object({
     }, 'callbackUrl must be a valid http(s) URL'),
 });
 
-module.exports = { resumeFileSchema, submitEvaluationSchema, MAX_BYTES };
+/* ------------------------------------------------------------------ *
+ * Phase 4 - the read doors
+ * ------------------------------------------------------------------ */
+
+// Path parameter for GET /api/evaluations/:id. Shape only, exactly like jobId:
+// a positive whole number, handed on as a Number. Whether that evaluation EXISTS
+// is a lookup, and the service does it (doc 04) - which is what keeps a malformed
+// id a 400 and an unknown one a 404.
+const evaluationIdParamSchema = z.object({
+  id: z
+    .string()
+    .regex(/^[1-9]\d*$/, 'id must be a positive integer')
+    .transform(Number),
+});
+
+/**
+ * A query-string number. Everything in a URL is text, so the guard's job is to
+ * refuse the text that is not a number BEFORE it can reach a SQL comparison - and
+ * to hand the service a real Number, not a string that happens to look like one.
+ *
+ * `Number('')` is 0 and `Number(' ')` is 0, so the empty case is rejected explicitly
+ * rather than silently becoming a filter of zero.
+ */
+function numericFilter(name, { min, max } = {}) {
+  let schema = z
+    .string({ error: `${name} must be a number` })
+    .trim()
+    .refine((value) => value !== '' && Number.isFinite(Number(value)), `${name} must be a number`)
+    .transform(Number);
+
+  if (min !== undefined) schema = schema.refine((v) => v >= min, `${name} must be at least ${min}`);
+  if (max !== undefined) schema = schema.refine((v) => v <= max, `${name} must be at most ${max}`);
+
+  return schema.optional();
+}
+
+/**
+ * The filters on GET /api/jobs/:jobId/evaluations (doc 07).
+ *
+ * All three are OPTIONAL, and that is the design: no filters means every candidate
+ * evaluated for this job, near-misses included. A filter can only narrow.
+ *
+ * There is no skill filter, on purpose - an eligible candidate already has the
+ * required skills, so it would be redundant, and adding one would drag us into
+ * querying the JSON columns that doc 02 chose to keep read-whole.
+ */
+const listEvaluationsQuerySchema = z.object({
+  // Only "true" / "false" (any case). A URL cannot carry a real boolean, but it can
+  // carry an unambiguous word, and guessing at "yes" / "1" / "on" would be inventing
+  // a contract the frontend never agreed to.
+  eligible: z
+    .string({ error: "eligible must be 'true' or 'false'" })
+    .trim()
+    .toLowerCase()
+    .refine((v) => v === 'true' || v === 'false', "eligible must be 'true' or 'false'")
+    .transform((v) => v === 'true')
+    .optional(),
+
+  // The score gate HR is scanning for. Same 0-100 range as a job's cutoff.
+  minPercentage: numericFilter('minPercentage', { min: 0, max: 100 }),
+
+  // Years, decimals allowed (1.5), never negative - mirroring the job's field.
+  minExperience: numericFilter('minExperience', { min: 0 }),
+});
+
+module.exports = {
+  resumeFileSchema,
+  submitEvaluationSchema,
+  evaluationIdParamSchema,
+  listEvaluationsQuerySchema,
+  MAX_BYTES,
+};
