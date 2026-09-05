@@ -1,8 +1,8 @@
 // Turns a Zod schema into an Express guard (doc 04).
 //
 // A guard runs BEFORE the controller. If the input is the wrong shape the request is
-// rejected right here - no controller, no service, no DB hit, and later no wasted
-// (paid) LLM call.
+// rejected right here - no controller, no service, no DB hit, and no wasted (paid)
+// LLM call.
 //
 // The parsed result is put on `req.valid`, never written back over `req.body` /
 // `req.params`, so nothing downstream can confuse raw input with checked input.
@@ -34,5 +34,8 @@ module.exports = {
   body: (schema) => guard(schema, 'body'),
   params: (schema) => guard(schema, 'params'),
   query: (schema) => guard(schema, 'query'),
+  // The upload, as multer left it on `req.file`. Same contract as the others, so
+  // the checked file lands on req.valid.file and the raw one is never used again.
+  file: (schema) => guard(schema, 'file'),
   formatIssues,
 };

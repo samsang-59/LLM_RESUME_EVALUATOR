@@ -40,10 +40,55 @@ class ConflictError extends AppError {
   }
 }
 
+/* ------------------------------------------------------------------ *
+ * Phase 3 - the pipeline's own error vocabulary
+ *
+ * These are NOT HTTP errors. By the time the pipeline runs, the caller has
+ * already been told 202 and hung up (doc 05), so there is nobody left to give a
+ * status code to. What matters instead is WHY it failed, because that string is
+ * written to evaluations.failure_reason and posted to the webhook (doc 06).
+ * ------------------------------------------------------------------ */
+
+// The closed set doc 06 defines. Anything outside it would be a bug, not a case.
+const FAILURE_REASONS = Object.freeze({
+  // The file held no usable text - empty, or a scan/photo of text. We reject
+  // rather than OCR: it is the candidate's responsibility and it costs us nothing.
+  UNREADABLE_RESUME: 'unreadable_resume',
+  // The LLM could not be reached (network / timeout) after the retries.
+  NETWORK: 'network',
+  // The LLM answered "busy" (429 / 503) after the retries.
+  LLM_OVERLOADED: 'llm_overloaded',
+  // The LLM answered, but not in the shape we demanded. Never retried - fail fast.
+  MALFORMED_OUTPUT: 'malformed_output',
+  // A bug on our side. Recorded honestly rather than disguised as one of the above.
+  INTERNAL: 'internal_error',
+});
+
+const FAILURE_REASON_VALUES = Object.freeze(Object.values(FAILURE_REASONS));
+
+/**
+ * A step of the pipeline gave up. Carries the reason that will be stored.
+ * `retryable` is set by the LLM adapter so the caller knows whether it already
+ * exhausted its retries or simply must not retry at all.
+ */
+class PipelineError extends Error {
+  constructor(failureReason, message, { cause, retryable = false } = {}) {
+    super(message || failureReason);
+    this.name = 'PipelineError';
+    this.failureReason = failureReason;
+    this.retryable = retryable;
+    if (cause !== undefined) this.cause = cause;
+    Error.captureStackTrace(this, this.constructor);
+  }
+}
+
 module.exports = {
   AppError,
   BadRequestError,
   UnauthorizedError,
   NotFoundError,
   ConflictError,
+  PipelineError,
+  FAILURE_REASONS,
+  FAILURE_REASON_VALUES,
 };

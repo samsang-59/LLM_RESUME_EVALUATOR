@@ -36,7 +36,7 @@ result. Designed layer by layer, backend first, then frontend.
 
 ## Status
 Design complete (docs 01-10). Implementation is underway against the
-[phase plan](11-phase-plan.md) - phases 0, 1 and 2 are done.
+[phase plan](11-phase-plan.md) - phases 0 through 3 are done.
 
 ## Parked / harden later
 - Reject / send-email action on a result

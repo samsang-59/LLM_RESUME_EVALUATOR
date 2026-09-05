@@ -15,6 +15,14 @@ function required(name) {
   return value;
 }
 
+// Numbers that may legitimately be 0 (retry delays), so `||` defaulting would be wrong.
+function num(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return fallback;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : fallback;
+}
+
 const config = {
   nodeEnv: NODE_ENV,
   isTest: NODE_ENV === 'test',
@@ -33,6 +41,26 @@ const config = {
   atsApiKey: process.env.ATS_API_KEY || '',
   openaiApiKey: process.env.OPENAI_API_KEY || '',
   maxResumeSizeMb: parseInt(process.env.MAX_RESUME_SIZE_MB || '5', 10),
+
+  // ---- Phase 3: the evaluation pipeline ----
+
+  // Where the original PDF/DOCX is kept. The DB stores only the path (doc 02).
+  uploadsDir: process.env.UPLOADS_DIR || './data/uploads',
+
+  // The LLM adapter. Temperature is ~0 on purpose: we want exact, repeatable facts,
+  // not creativity (doc 06). Retries cover network / overload only - a malformed
+  // reply fails fast, so retrying it would only burn money.
+  llmModel: process.env.LLM_MODEL || 'gpt-4o-mini',
+  llmTemperature: num('LLM_TEMPERATURE', 0),
+  llmMaxRetries: num('LLM_MAX_RETRIES', 2),
+  llmRetryBaseMs: num('LLM_RETRY_BASE_MS', 300),
+  llmTimeoutMs: num('LLM_TIMEOUT_MS', 30000),
+
+  // The webhook. Transient failures on the caller's side are retried; permanent
+  // ones are not (doc 06). Tests set the base delay to 0 to stay fast.
+  webhookMaxRetries: num('WEBHOOK_MAX_RETRIES', 2),
+  webhookRetryBaseMs: num('WEBHOOK_RETRY_BASE_MS', 300),
+  webhookTimeoutMs: num('WEBHOOK_TIMEOUT_MS', 10000),
 
   // Exposed so a test can assert the missing-var guard actually throws.
   required,

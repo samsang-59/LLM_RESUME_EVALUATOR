@@ -31,6 +31,9 @@ function runJest(filter) {
   fs.mkdirSync(REPORTS_DIR, { recursive: true });
   const args = [
     '--disable-warning=ExperimentalWarning',
+    // pdf-parse loads its PDF engine through a dynamic import; Jest's VM needs this
+    // flag to allow that, or every PDF fixture would fail to parse.
+    '--experimental-vm-modules',
     path.join(ROOT, 'node_modules', 'jest', 'bin', 'jest.js'),
     '--runInBand',
     '--json',
