@@ -8,6 +8,7 @@ const router = express.Router();
 router.use('/jobs', require('./jobRoutes'));
 // The one evaluation door addressed by its own id rather than by its job.
 router.use('/evaluations', require('./evaluationDetailRoutes'));
-// Phase 5: router.use('/auth', ...)
+// The only unguarded doors: register and login (doc 09).
+router.use('/auth', require('./authRoutes'));
 
 module.exports = router;

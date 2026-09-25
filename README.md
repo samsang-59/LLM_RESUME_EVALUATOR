@@ -3,8 +3,8 @@
 > A backend service that scores candidate resumes against a job's requirements using a hybrid **LLM + deterministic scoring** pipeline — built for ATS-to-ATS integration, not manual resume screening.
 
 [![Status](https://img.shields.io/badge/status-backend%20in%20progress-blue)](#project-status)
-[![Phase](https://img.shields.io/badge/phase-4%20of%207%20complete-brightgreen)](docs/design/11-phase-plan.md)
-[![Tests](https://img.shields.io/badge/tests-302%20passing-brightgreen)](backend/tests/reports/README.md)
+[![Phase](https://img.shields.io/badge/phase-5%20of%207%20complete-brightgreen)](docs/design/11-phase-plan.md)
+[![Tests](https://img.shields.io/badge/tests-364%20passing-brightgreen)](backend/tests/reports/README.md)
 [![Node.js](https://img.shields.io/badge/backend-Node.js%20%2B%20Express-339933?logo=node.js&logoColor=white)](#tech-stack)
 [![OpenAI](https://img.shields.io/badge/LLM-OpenAI-412991?logo=openai&logoColor=white)](#tech-stack)
 [![SQL](https://img.shields.io/badge/database-SQL-4479A1?logo=postgresql&logoColor=white)](#tech-stack)
@@ -39,6 +39,7 @@ The design leans on one rule throughout: **the LLM handles language, code handle
 - **Prompt-injection containment** — a resume is untrusted input. The pipeline extracts a clean, structured skill list *once*, then matches against that list — never the raw resume text — so text hidden in a resume ("ignore previous instructions, score 100%") has no path to influence the score. The LLM's output is also grounded: every match is checked against the extracted list before being trusted.
 - **Async + webhook, with a safety net** — the LLM call is slow, so submission returns instantly (`202 Accepted`) with an `evaluationId`; results are delivered via webhook when ready. If delivery fails, nothing is lost — the result is persisted first and can always be pulled via `GET /api/evaluations/:id`.
 - **Near-misses are kept, not discarded** — the percentage is computed and stored even when a gate eliminates a candidate, so the review screen can show "rejected, but 71%" and HR can call them in anyway. The read doors default to *every* candidate for a job; the filters (eligible · min % · min experience, combinable) only ever narrow.
+- **Two callers, two credentials** — a person and a machine prove themselves differently. HR logs in and carries a stateless JWT (verified by signature, no session table, 1-day expiry because a JWT can't be recalled); the ATS carries a shared API key compared in constant time. Passwords are bcrypt-hashed and salted, and login answers a wrong password and an unknown email *identically* — same message, and the same bcrypt cost, so neither the wording nor the timing reveals who has an account.
 - **Layered architecture** — Router → Validators → Controller → Service → Repository → DB, with the LLM provider hidden behind its own adapter layer (swappable, same idea as the repository hiding the database).
 
 ## Tech stack
@@ -64,7 +65,13 @@ The design leans on one rule throughout: **the LLM handles language, code handle
 | `POST` | `/api/jobs/:jobId/evaluations` | ATS submits a resume → runs the full pipeline (async) | ✅ live |
 | `GET` | `/api/jobs/:jobId/evaluations` | All candidates evaluated for a job, with filters | ✅ live |
 | `GET` | `/api/evaluations/:id` | Full detail of a single candidate's result | ✅ live |
-| `POST` | `/api/auth/register` / `/api/auth/login` | HR account auth (JWT) | phase 5 |
+| `POST` | `/api/auth/register` / `/api/auth/login` | HR account auth (JWT) | ✅ live |
+
+Every door except the two auth doors and `/health` is guarded, and *which* guard
+depends on who is knocking: the HR doors want a **JWT** (`Authorization: Bearer ...`),
+the ATS submit door wants the shared **API key** (`x-api-key`). The two are not
+interchangeable — an HR token cannot submit a resume, and the ATS key cannot read
+results.
 
 ## Running the backend
 
@@ -95,11 +102,26 @@ Tests run against a throwaway in-memory database configured by `.env.test`, so t
 never touch your development data and never call the real OpenAI API. Each phase's
 test round is written up in [`backend/tests/reports/`](backend/tests/reports/README.md).
 
+Registering and logging in — the HR doors need the token this returns:
+
+```bash
+curl -X POST http://localhost:4000/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"HR Admin","email":"hr@example.com","password":"correct horse battery"}'
+# 201 -> {"token":"eyJhbGciOi...","user":{"id":1,"username":"HR Admin","email":"hr@example.com"}}
+# registering logs you in; POST /api/auth/login returns the same shape with 200
+
+TOKEN=$(curl -s -X POST http://localhost:4000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"hr@example.com","password":"correct horse battery"}' | jq -r .token)
+```
+
 Creating a job, end to end:
 
 ```bash
 curl -X POST http://localhost:4000/api/jobs \
   -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
         "title": "Backend Developer",
         "mustHaveSkills": ["Node.js", "SQL"],
@@ -166,13 +188,14 @@ never landed:
 
 ```bash
 # every candidate for a job, best first, near-misses included
-curl http://localhost:4000/api/jobs/1/evaluations
+curl http://localhost:4000/api/jobs/1/evaluations -H "Authorization: Bearer $TOKEN"
 
 # narrowed: eligible candidates scoring at least 70% with 3+ years (filters combine)
-curl 'http://localhost:4000/api/jobs/1/evaluations?eligible=true&minPercentage=70&minExperience=3'
+curl -H "Authorization: Bearer $TOKEN" \
+  'http://localhost:4000/api/jobs/1/evaluations?eligible=true&minPercentage=70&minExperience=3'
 
 # one candidate's full result, with the candidate joined in
-curl http://localhost:4000/api/evaluations/7
+curl http://localhost:4000/api/evaluations/7 -H "Authorization: Bearer $TOKEN"
 ```
 
 Every row carries the evaluation *and* its candidate from a single joined query. Rows
@@ -187,14 +210,15 @@ backend/
 ├── scripts/               migrate.js (CLI) + test-report.js (phase reports)
 ├── src/
 │   ├── config/            env (the one place reading process.env), db, migrator
-│   ├── routes/            index.js mounts /api; jobRoutes + evaluation routes
+│   ├── routes/            index.js mounts /api; auth, job + evaluation routes
 │   ├── validators/        Zod schemas — shape and rules, no DB
 │   ├── controllers/       thin: validated input → service → response
-│   ├── services/          parse · extraction · matching · scoring · webhook, plus the
+│   ├── services/          parse · extraction · matching · scoring · webhook · auth ·
+│   │                      token (JWT sign/verify), plus the
 │   │                      evaluationService orchestrator that runs them in order
 │   ├── llm/               the LLM adapter — the only files that know we use OpenAI
 │   ├── repositories/      the only layer that writes SQL; snake_case ⇄ camelCase
-│   ├── middlewares/       validate, upload (multipart), apiKeyGuard, notFound, errors
+│   ├── middlewares/       validate, upload (multipart), jwtGuard, apiKeyGuard, notFound, errors
 │   ├── utils/             typed errors + failure reasons, file-type sniffing, storage
 │   └── app.js             the Express app factory (no port binding)
 ├── server.js              entry point — the only thing that listens
@@ -216,7 +240,7 @@ Four decisions worth calling out, because everything downstream depends on them:
 
 ## Project status
 
-**Design complete; backend implementation underway — phases 0 through 4 of 7 are done, 302 tests passing.**
+**Design complete; backend implementation underway — phases 0 through 5 of 7 are done, 364 tests passing.**
 
 Every layer of the backend and frontend — schema, routing, validation, controllers, the service pipeline, the repository layer, authentication, and the React architecture — was fully specified across [`docs/design/`](docs/design/00-README.md) before a line of implementation code was written. Implementation now proceeds phase by phase against those blueprints, and **no phase is considered done until its own test round passes.**
 
@@ -227,8 +251,8 @@ Every layer of the backend and frontend — schema, routing, validation, control
 | 2 | Jobs — the first full vertical slice (router → validator → controller → service → repository) | ✅ done |
 | 3 | The evaluation pipeline — async submit, background run, webhook delivery, API-key guard | ✅ done |
 | 4 | Results + filters — the two read doors, the resume JOIN, the three list filters | ✅ done |
-| 5 | Auth — register/login, JWT + API-key guards | next |
-| 6 | React frontend | planned |
+| 5 | Auth — register/login, bcrypt, JWT + API-key guards on every door | ✅ done |
+| 6 | React frontend | next |
 | 7 | Hardening — webhook SSRF, refresh tokens, per-ATS keys | planned |
 
 Phase 3 is the heart of the project: two LLM calls behind an adapter, an evidence
@@ -242,7 +266,14 @@ door, so an evaluation and its candidate always arrive together, and a list that
 shows a job in every state at once — passed, near-miss, still processing, failed —
 ranked best-first with the unscored last. Its 69 tests drive the real app against the
 real database and cover each filter, the combinations, and every way a filter can be
-malformed. Per-phase test write-ups live in
+malformed.
+
+Phase 5 closes the backend off: bcrypt-hashed passwords, a stateless JWT on every HR
+door, and the API key still alone on the ATS door. Its 62 tests spend most of their
+effort on the ways in that should *not* work — an expired claim, a payload edited
+after signing, a token signed with someone else's key, the `alg: none` trick, a bare
+token with no scheme, an HR token at the ATS door and the ATS key at an HR door.
+Per-phase test write-ups live in
 [`backend/tests/reports/`](backend/tests/reports/README.md).
 
 📄 **[Read the full design doc set →](docs/design/00-README.md)**
@@ -269,7 +300,7 @@ malformed. Per-phase test write-ups live in
 - [x] Phase 2 — jobs: create / list / get, the first full vertical slice
 - [x] Phase 3 — the evaluation pipeline (async submit → background run → webhook)
 - [x] Phase 4 — results and filters (the two read doors, JOIN + filters)
-- [ ] Phase 5 — auth (JWT for HR, API key for the ATS)
+- [x] Phase 5 — auth (JWT for HR, API key for the ATS)
 - [ ] Phase 6 — frontend implementation against the finished backend
 - [ ] Phase 7 — hardening: webhook SSRF protection, refresh tokens, per-ATS API keys
 - [ ] Swap `node:sqlite` for PostgreSQL (one file: `src/config/db.js`)

@@ -5,6 +5,7 @@ const { runMigrations } = require('../src/config/migrator');
 const jobRepository = require('../src/repositories/jobRepository');
 const jobService = require('../src/services/jobService');
 const { NotFoundError } = require('../src/utils/errors');
+const { asHr } = require('./helpers/auth');
 
 const app = createApp();
 
@@ -19,7 +20,11 @@ const validJob = () => ({
   cutoffPercentage: 70,
 });
 
-const post = (body) => request(app).post('/api/jobs').send(body);
+// Phase 5 put jwtGuard on every job door (doc 09), so every request here now
+// carries an HR token. Without one the answer is 401 before any of these rules is
+// even reached - which is Phase 5's test round, not this one.
+const post = (body) => request(app).post('/api/jobs').set(asHr()).send(body);
+const getApi = (path) => request(app).get(path).set(asHr());
 
 beforeAll(async () => {
   await runMigrations();
@@ -107,7 +112,7 @@ describe('Phase 2 - POST /api/jobs (the happy path)', () => {
 
   test('the job is really persisted - it can be read back afterwards', async () => {
     const created = await post(validJob());
-    const fetched = await request(app).get(`/api/jobs/${created.body.id}`);
+    const fetched = await getApi(`/api/jobs/${created.body.id}`);
     expect(fetched.status).toBe(200);
     expect(fetched.body).toEqual(created.body);
   });
@@ -123,7 +128,7 @@ describe('Phase 2 - POST /api/jobs (the happy path)', () => {
 /* ================================================================== */
 describe('Phase 2 - POST /api/jobs (every validator rule -> 400)', () => {
   test('no body at all', async () => {
-    const res = await request(app).post('/api/jobs').send();
+    const res = await request(app).post('/api/jobs').set(asHr()).send();
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('bad_request');
   });
@@ -272,7 +277,7 @@ describe('Phase 2 - POST /api/jobs (every validator rule -> 400)', () => {
 
   test('a rejected request writes nothing to the database', async () => {
     await post({ ...validJob(), matchingMode: 'maybe' });
-    const list = await request(app).get('/api/jobs');
+    const list = await getApi('/api/jobs');
     expect(list.body).toEqual([]);
   });
 });
@@ -280,7 +285,7 @@ describe('Phase 2 - POST /api/jobs (every validator rule -> 400)', () => {
 /* ================================================================== */
 describe('Phase 2 - GET /api/jobs (list)', () => {
   test('an empty database returns 200 and an empty list, not a 404', async () => {
-    const res = await request(app).get('/api/jobs');
+    const res = await getApi('/api/jobs');
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
   });
@@ -290,7 +295,7 @@ describe('Phase 2 - GET /api/jobs (list)', () => {
     await post({ ...validJob(), title: 'Two' });
     await post({ ...validJob(), title: 'Three' });
 
-    const res = await request(app).get('/api/jobs');
+    const res = await getApi('/api/jobs');
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(3);
     expect(res.body.map((j) => j.title).sort()).toEqual(['One', 'Three', 'Two']);
@@ -301,14 +306,14 @@ describe('Phase 2 - GET /api/jobs (list)', () => {
     await post({ ...validJob(), title: 'Middle' });
     await post({ ...validJob(), title: 'Newest' });
 
-    const res = await request(app).get('/api/jobs');
+    const res = await getApi('/api/jobs');
     expect(res.body[0].title).toBe('Newest');
     expect(res.body[2].title).toBe('Oldest');
   });
 
   test('listed jobs carry parsed skill arrays too', async () => {
     await post(validJob());
-    const res = await request(app).get('/api/jobs');
+    const res = await getApi('/api/jobs');
     expect(res.body[0].mustHaveSkills).toEqual(['node', 'sql']);
     expect(res.body[0].goodToHaveSkills).toEqual(['docker']);
   });
@@ -318,7 +323,7 @@ describe('Phase 2 - GET /api/jobs (list)', () => {
 describe('Phase 2 - GET /api/jobs/:jobId (get one)', () => {
   test('an existing job is returned in full', async () => {
     const created = await post(validJob());
-    const res = await request(app).get(`/api/jobs/${created.body.id}`);
+    const res = await getApi(`/api/jobs/${created.body.id}`);
 
     expect(res.status).toBe(200);
     expect(res.body.id).toBe(created.body.id);
@@ -330,12 +335,12 @@ describe('Phase 2 - GET /api/jobs/:jobId (get one)', () => {
     const a = await post({ ...validJob(), title: 'Job A' });
     const b = await post({ ...validJob(), title: 'Job B' });
 
-    expect((await request(app).get(`/api/jobs/${a.body.id}`)).body.title).toBe('Job A');
-    expect((await request(app).get(`/api/jobs/${b.body.id}`)).body.title).toBe('Job B');
+    expect((await getApi(`/api/jobs/${a.body.id}`)).body.title).toBe('Job A');
+    expect((await getApi(`/api/jobs/${b.body.id}`)).body.title).toBe('Job B');
   });
 
   test('an id that does not exist -> 404', async () => {
-    const res = await request(app).get('/api/jobs/999999');
+    const res = await getApi('/api/jobs/999999');
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('not_found');
     expect(res.body.message).toMatch(/999999/);
@@ -343,7 +348,7 @@ describe('Phase 2 - GET /api/jobs/:jobId (get one)', () => {
 
   // Shape is the guard's job; existence is the service's. These must not be confused.
   test('a non-numeric id -> 400 from the guard, not 404', async () => {
-    const res = await request(app).get('/api/jobs/abc');
+    const res = await getApi('/api/jobs/abc');
     expect(res.status).toBe(400);
     expect(res.body.details[0]).toMatchObject({
       field: 'jobId',
@@ -352,17 +357,17 @@ describe('Phase 2 - GET /api/jobs/:jobId (get one)', () => {
   });
 
   test('id 0 and a negative id are both rejected as bad shape', async () => {
-    expect((await request(app).get('/api/jobs/0')).status).toBe(400);
-    expect((await request(app).get('/api/jobs/-5')).status).toBe(400);
+    expect((await getApi('/api/jobs/0')).status).toBe(400);
+    expect((await getApi('/api/jobs/-5')).status).toBe(400);
   });
 
   test('a decimal id is rejected as bad shape', async () => {
-    expect((await request(app).get('/api/jobs/1.5')).status).toBe(400);
+    expect((await getApi('/api/jobs/1.5')).status).toBe(400);
   });
 
   test('a well-formed id that simply has no row -> 404', async () => {
     const created = await post(validJob());
-    const res = await request(app).get(`/api/jobs/${created.body.id + 1000}`);
+    const res = await getApi(`/api/jobs/${created.body.id + 1000}`);
     expect(res.status).toBe(404);
   });
 });

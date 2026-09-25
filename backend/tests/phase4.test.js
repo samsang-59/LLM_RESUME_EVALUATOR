@@ -22,6 +22,7 @@ const evaluationRepository = require('../src/repositories/evaluationRepository')
 const evaluationService = require('../src/services/evaluationService');
 const { NotFoundError } = require('../src/utils/errors');
 const { sampleJob } = require('./helpers/fixtures');
+const { asHr } = require('./helpers/auth');
 
 const app = createApp();
 
@@ -133,8 +134,11 @@ async function seedCast(jobId) {
 
 /* ============================ small helpers ============================ */
 
-const getDetail = (id) => request(app).get(`/api/evaluations/${id}`);
-const getList = (jobId, query = '') => request(app).get(`/api/jobs/${jobId}/evaluations${query}`);
+// Both read doors are HR doors, so every request here carries a token (Phase 5).
+// What happens WITHOUT one is Phase 5's test round.
+const getDetail = (id) => request(app).get(`/api/evaluations/${id}`).set(asHr());
+const getList = (jobId, query = '') =>
+  request(app).get(`/api/jobs/${jobId}/evaluations${query}`).set(asHr());
 
 /** The candidate names a list response came back with, in the order they arrived. */
 const names = (res) => res.body.map((e) => (e.candidate ? e.candidate.name : null));

@@ -53,6 +53,7 @@ const {
   sampleMatchAnswer,
 } = require('./helpers/fixtures');
 const { startWebhookReceiver, DEAD_URL } = require('./helpers/webhookReceiver');
+const { asHr } = require('./helpers/auth');
 
 const app = createApp();
 
@@ -80,7 +81,9 @@ function mockHappyLlm({ extraction = sampleExtraction(), match } = {}, job = sam
 /** Insert a job through the real door and get the row back as the pipeline sees it. */
 async function createJob(overrides = {}) {
   const { id, createdAt, ...body } = sampleJob(overrides);
-  const res = await request(app).post('/api/jobs').send(body);
+  // Creating a job is an HR door, so it needs an HR token (Phase 5). The submit
+  // door below is the ATS's, and still answers to the API key instead.
+  const res = await request(app).post('/api/jobs').set(asHr()).send(body);
   expect(res.status).toBe(201);
   return res.body;
 }

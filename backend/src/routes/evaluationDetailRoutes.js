@@ -10,16 +10,20 @@
 // nobody the result. Webhook primary, this read door backup.
 const express = require('express');
 const validate = require('../middlewares/validate');
+const jwtGuard = require('../middlewares/jwtGuard');
 const { evaluationIdParamSchema } = require('../validators/evaluationValidator');
 const evaluationController = require('../controllers/evaluationController');
 
 const router = express.Router();
 
 // 6. One candidate's full result, with the candidate joined in.
-// The guard checks the id's SHAPE; whether it exists is the service's lookup, which
-// is what makes a malformed id a 400 and an unknown one a 404.
+//
+// An HR door, so jwtGuard first: an anonymous caller is turned away before we look
+// at their id at all. Then the shape check - whether the evaluation exists is the
+// service's lookup, which is what makes a malformed id a 400 and an unknown one a 404.
 router.get(
   '/:id',
+  jwtGuard,
   validate.params(evaluationIdParamSchema),
   evaluationController.getEvaluation
 );

@@ -36,8 +36,18 @@ const config = {
   // after the upgrade - the repositories never see the difference.
   dbDialect: process.env.DB_DIALECT || 'sqlite',
 
-  jwtSecret: process.env.JWT_SECRET || 'dev-secret',
+  // A missing secret in production would mean every token is signed with a value
+  // published in this repository - i.e. anyone could mint one. So it is required
+  // there, and only there, so a fresh clone still runs.
+  jwtSecret: NODE_ENV === 'production' ? required('JWT_SECRET') : process.env.JWT_SECRET || 'dev-secret',
+  // One day (doc 09): a JWT cannot be withdrawn once issued, so the expiry is what
+  // bounds the damage if one leaks.
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
+  // bcrypt's cost factor. Deliberate slowness - it is what makes brute-forcing a
+  // stolen hash table expensive. 10 is the usual production floor. Tests default to
+  // 4 (and .env.test says so explicitly): what they check is our code, not bcrypt's
+  // arithmetic, and 10 rounds x a whole auth suite is minutes of pure waiting.
+  bcryptRounds: num('BCRYPT_ROUNDS', NODE_ENV === 'test' ? 4 : 10),
   atsApiKey: process.env.ATS_API_KEY || '',
   openaiApiKey: process.env.OPENAI_API_KEY || '',
   maxResumeSizeMb: parseInt(process.env.MAX_RESUME_SIZE_MB || '5', 10),

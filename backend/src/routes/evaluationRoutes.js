@@ -6,6 +6,7 @@
 const express = require('express');
 const validate = require('../middlewares/validate');
 const apiKeyGuard = require('../middlewares/apiKeyGuard');
+const jwtGuard = require('../middlewares/jwtGuard');
 const uploadResume = require('../middlewares/upload');
 const { jobIdParamSchema } = require('../validators/jobValidator');
 const {
@@ -38,14 +39,16 @@ router.post(
 
 // 5. All candidates evaluated for this job - the main HR review screen.
 //
-// No apiKeyGuard: that key belongs to the ATS submitting resumes, not to HR reading
-// results. This is an HR door, and Phase 5 puts the JWT guard on it.
+// jwtGuard, NOT apiKeyGuard: the two doors on this same path answer to different
+// callers. The ATS pushes resumes in with a shared key; HR reads the results back
+// with a login (doc 09). Same URL, same router, different evidence.
 //
-// Two guards, both shape-only: the :jobId format, then the three optional filters
+// Then two shape-only guards: the :jobId format, and the three optional filters
 // (doc 07). Whether the job exists is the service's lookup, so a malformed id is a
 // 400 here and an unknown one is a 404 from underneath.
 router.get(
   '/',
+  jwtGuard,
   validate.params(jobIdParamSchema),
   validate.query(listEvaluationsQuerySchema),
   evaluationController.listEvaluationsForJob

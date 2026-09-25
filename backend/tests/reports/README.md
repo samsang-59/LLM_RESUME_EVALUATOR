@@ -9,6 +9,7 @@ One report per phase, regenerated from Jest output by `npm run test:report`.
 | 2 | Jobs — first full vertical slice (router → validator → controller → service → repository) | 47/47 | ✅ passed | [phase-2.md](phase-2.md) |
 | 3 | Evaluation pipeline — async + webhook | 116/116 | ✅ passed | [phase-3.md](phase-3.md) |
 | 4 | Results + filters | 69/69 | ✅ passed | [phase-4.md](phase-4.md) |
-| **All** | | **302/302** | ✅ | |
+| 5 | Auth — register / login, JWT + API key guards | 62/62 | ✅ passed | [phase-5.md](phase-5.md) |
+| **All** | | **364/364** | ✅ | |
 
-_Last run: 2026-09-05T13:46:33.270Z_
+_Last run: 2026-09-05T14:01:28.032Z_
