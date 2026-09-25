@@ -5,10 +5,10 @@
 | | |
 |---|---|
 | **Result** | ✅ ALL PASSED |
-| **Tests** | 47 passed / 47 total |
-| **Duration** | 1.17s |
+| **Tests** | 48 passed / 48 total |
+| **Duration** | 1.30s |
 | **Test file** | `tests/phase2.test.js` |
-| **Run at** | 2026-09-05T14:01:28.028Z |
+| **Run at** | 2026-09-25T11:32:50.053Z |
 
 ---
 
@@ -60,7 +60,7 @@
 
 ## Phase 2 - GET /api/jobs (list)
 
-4/4 passed
+5/5 passed
 
 | # | Test | Result |
 |---|---|---|
@@ -68,6 +68,7 @@
 | 34 | every created job is listed | ✅ |
 | 35 | the newest job comes first (HR dashboard order) | ✅ |
 | 36 | listed jobs carry parsed skill arrays too | ✅ |
+| 37 | each listed job carries its candidate count (Phase 6 - the dashboard cards) | ✅ |
 
 ## Phase 2 - GET /api/jobs/:jobId (get one)
 
@@ -75,13 +76,13 @@
 
 | # | Test | Result |
 |---|---|---|
-| 37 | an existing job is returned in full | ✅ |
-| 38 | the right job is returned when several exist | ✅ |
-| 39 | an id that does not exist -> 404 | ✅ |
-| 40 | a non-numeric id -> 400 from the guard, not 404 | ✅ |
-| 41 | id 0 and a negative id are both rejected as bad shape | ✅ |
-| 42 | a decimal id is rejected as bad shape | ✅ |
-| 43 | a well-formed id that simply has no row -> 404 | ✅ |
+| 38 | an existing job is returned in full | ✅ |
+| 39 | the right job is returned when several exist | ✅ |
+| 40 | an id that does not exist -> 404 | ✅ |
+| 41 | a non-numeric id -> 400 from the guard, not 404 | ✅ |
+| 42 | id 0 and a negative id are both rejected as bad shape | ✅ |
+| 43 | a decimal id is rejected as bad shape | ✅ |
+| 44 | a well-formed id that simply has no row -> 404 | ✅ |
 
 ## Phase 2 - the layers underneath
 
@@ -89,8 +90,8 @@
 
 | # | Test | Result |
 |---|---|---|
-| 44 | the repository returns null for a missing job (it does not throw) | ✅ |
-| 45 | the service turns that null into a NotFoundError (which becomes the 404) | ✅ |
-| 46 | the repository round-trips a job unchanged | ✅ |
-| 47 | an unknown /api path still returns the standard 404 | ✅ |
+| 45 | the repository returns null for a missing job (it does not throw) | ✅ |
+| 46 | the service turns that null into a NotFoundError (which becomes the 404) | ✅ |
+| 47 | the repository round-trips a job unchanged | ✅ |
+| 48 | an unknown /api path still returns the standard 404 | ✅ |
 

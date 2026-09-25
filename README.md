@@ -2,9 +2,9 @@
 
 > A backend service that scores candidate resumes against a job's requirements using a hybrid **LLM + deterministic scoring** pipeline — built for ATS-to-ATS integration, not manual resume screening.
 
-[![Status](https://img.shields.io/badge/status-backend%20in%20progress-blue)](#project-status)
-[![Phase](https://img.shields.io/badge/phase-5%20of%207%20complete-brightgreen)](docs/design/11-phase-plan.md)
-[![Tests](https://img.shields.io/badge/tests-364%20passing-brightgreen)](backend/tests/reports/README.md)
+[![Status](https://img.shields.io/badge/status-frontend%20built-blue)](#project-status)
+[![Phase](https://img.shields.io/badge/phase-6%20of%207%20complete-brightgreen)](docs/design/11-phase-plan.md)
+[![Tests](https://img.shields.io/badge/tests-495%20passing-brightgreen)](backend/tests/reports/README.md)
 [![Node.js](https://img.shields.io/badge/backend-Node.js%20%2B%20Express-339933?logo=node.js&logoColor=white)](#tech-stack)
 [![OpenAI](https://img.shields.io/badge/LLM-OpenAI-412991?logo=openai&logoColor=white)](#tech-stack)
 [![SQL](https://img.shields.io/badge/database-SQL-4479A1?logo=postgresql&logoColor=white)](#tech-stack)
@@ -49,18 +49,18 @@ The design leans on one rule throughout: **the LLM handles language, code handle
 | Backend | Node.js + Express 5 (CommonJS) |
 | LLM | OpenAI (`openai` SDK) behind a swappable adapter (`src/llm/`); structured output validated against Zod schemas |
 | Database | SQL — `node:sqlite` today behind a Postgres-shaped query layer, so the move to PostgreSQL touches one file. 4 tables: `users`, `jobs`, `resumes`, `evaluations` |
-| Frontend | React — HR-only dashboard for creating jobs and reviewing candidates |
+| Frontend | React 19 + Vite + React Router — HR-only dashboard for creating jobs and reviewing candidates; plain CSS with light and dark themes |
 | Auth | JWT for HR (browser), API key for the ATS (system-to-system) |
 | Validation | Zod schemas, turned into Express guards that run before any controller |
 | Uploads | `multer` (in memory, size-capped) with magic-byte type sniffing; `pdf-parse` / `mammoth` for text |
-| Tests | Jest + supertest — the LLM is mocked, so tests stay deterministic and free |
+| Tests | Backend: Jest + supertest (the LLM is mocked). Frontend: Vitest + React Testing Library (the backend is mocked at `fetch`) |
 
 ## API surface
 
 | Method | Endpoint | Purpose | Status |
 |---|---|---|---|
 | `POST` | `/api/jobs` | HR creates a job opening | ✅ live |
-| `GET` | `/api/jobs` | List all jobs | ✅ live |
+| `GET` | `/api/jobs` | List all jobs, each with its candidate count | ✅ live |
 | `GET` | `/api/jobs/:jobId` | Get one job | ✅ live |
 | `POST` | `/api/jobs/:jobId/evaluations` | ATS submits a resume → runs the full pipeline (async) | ✅ live |
 | `GET` | `/api/jobs/:jobId/evaluations` | All candidates evaluated for a job, with filters | ✅ live |
@@ -202,6 +202,31 @@ Every row carries the evaluation *and* its candidate from a single joined query.
 still `processing` (and any that failed before extraction) come back with
 `"candidate": null` rather than being hidden, and rank last — they have no score yet.
 
+## Running the frontend
+
+With the backend running on `:4000`:
+
+```bash
+cd frontend
+npm install
+npm run dev               # http://localhost:5173
+```
+
+Vite forwards every `/api` call to `http://localhost:4000`, so the browser sees one
+origin and the backend needs no CORS setup. Register an HR account on the sign-up
+screen and you are in.
+
+| Command | Does |
+|---|---|
+| `npm run dev` | Start the dev server |
+| `npm run build` | Production build into `frontend/dist/` |
+| `npm test` | Run the frontend test suite |
+| `npm run test:report` | Re-run it and regenerate [`frontend/tests/reports/phase-6.md`](frontend/tests/reports/phase-6.md) |
+
+The five screens — Login / Register, Dashboard, Create Job, Job Candidates and
+Candidate Detail — follow the designs in
+[`docs/design/frontend-screens/`](docs/design/frontend-screens/), in light and dark.
+
 ## Project structure
 
 ```
@@ -223,6 +248,17 @@ backend/
 │   └── app.js             the Express app factory (no port binding)
 ├── server.js              entry point — the only thing that listens
 └── tests/                 one suite per phase, plus reports/
+
+frontend/
+├── src/
+│   ├── api/               the ONLY place that calls the backend; attaches the JWT
+│   ├── context/           AuthContext (the one piece of global state) + theme
+│   ├── routes/            React Router setup + ProtectedRoute
+│   ├── pages/             Login, Register, Dashboard, CreateJob, JobCandidates, CandidateDetail
+│   ├── components/        JobCard, CandidateRow, CircularPercentage, SkillTag, StatusBadge, ...
+│   ├── utils/             formatting + client validation that mirrors the backend guards
+│   └── styles/            design tokens (light + dark) and component styles
+└── tests/                 one file per screen, plus an end-to-end walk-through and reports/
 ```
 
 Four decisions worth calling out, because everything downstream depends on them:
@@ -240,7 +276,7 @@ Four decisions worth calling out, because everything downstream depends on them:
 
 ## Project status
 
-**Design complete; backend implementation underway — phases 0 through 5 of 7 are done, 364 tests passing.**
+**Design complete; backend and frontend built — phases 0 through 6 of 7 are done, 495 tests passing (365 backend, 130 frontend).**
 
 Every layer of the backend and frontend — schema, routing, validation, controllers, the service pipeline, the repository layer, authentication, and the React architecture — was fully specified across [`docs/design/`](docs/design/00-README.md) before a line of implementation code was written. Implementation now proceeds phase by phase against those blueprints, and **no phase is considered done until its own test round passes.**
 
@@ -252,8 +288,8 @@ Every layer of the backend and frontend — schema, routing, validation, control
 | 3 | The evaluation pipeline — async submit, background run, webhook delivery, API-key guard | ✅ done |
 | 4 | Results + filters — the two read doors, the resume JOIN, the three list filters | ✅ done |
 | 5 | Auth — register/login, bcrypt, JWT + API-key guards on every door | ✅ done |
-| 6 | React frontend | next |
-| 7 | Hardening — webhook SSRF, refresh tokens, per-ATS keys | planned |
+| 6 | React frontend — the five HR screens, JWT handling, filters, every loading / empty / error / processing state | ✅ done |
+| 7 | Hardening — webhook SSRF, refresh tokens, per-ATS keys | next |
 
 Phase 3 is the heart of the project: two LLM calls behind an adapter, an evidence
 check that rejects hallucinated matches, scoring done entirely in our own code, and a
@@ -273,8 +309,17 @@ door, and the API key still alone on the ATS door. Its 62 tests spend most of th
 effort on the ways in that should *not* work — an expired claim, a payload edited
 after signing, a token signed with someone else's key, the `alg: none` trick, a bare
 token with no scheme, an HR token at the ATS door and the ATS key at an HR door.
+
+Phase 6 is the HR dashboard itself, built to the screen designs. One API module is
+the only code that talks to the backend and attaches the token; one Context holds the
+session; every screen handles loading, empty, error and the `processing` / `failed`
+evaluation states. The candidates table keeps the job's totals fixed while the
+backend filters narrow the rows. Its 130 tests mock the backend at `fetch` and run
+everything above it for real — including a walk-through from sign-up, to creating a
+job, to opening one candidate's result.
 Per-phase test write-ups live in
-[`backend/tests/reports/`](backend/tests/reports/README.md).
+[`backend/tests/reports/`](backend/tests/reports/README.md) and
+[`frontend/tests/reports/`](frontend/tests/reports/phase-6.md).
 
 📄 **[Read the full design doc set →](docs/design/00-README.md)**
 
@@ -291,6 +336,7 @@ Per-phase test write-ups live in
 | 09 | [Authentication](docs/design/09-authentication.md) | JWT + API key, across every layer |
 | 10 | [Frontend Architecture](docs/design/10-frontend-architecture.md) | Components, API layer, routing, state |
 | 11 | [Phase Plan](docs/design/11-phase-plan.md) | The 8 build phases and the test round that closes each one |
+| — | [Screen designs](docs/design/frontend-screens/) | The 13 screen mockups the frontend is built to |
 
 ## Roadmap
 
@@ -301,7 +347,7 @@ Per-phase test write-ups live in
 - [x] Phase 3 — the evaluation pipeline (async submit → background run → webhook)
 - [x] Phase 4 — results and filters (the two read doors, JOIN + filters)
 - [x] Phase 5 — auth (JWT for HR, API key for the ATS)
-- [ ] Phase 6 — frontend implementation against the finished backend
+- [x] Phase 6 — frontend implementation against the finished backend
 - [ ] Phase 7 — hardening: webhook SSRF protection, refresh tokens, per-ATS API keys
 - [ ] Swap `node:sqlite` for PostgreSQL (one file: `src/config/db.js`)
 

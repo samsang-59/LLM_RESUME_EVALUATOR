@@ -3,6 +3,7 @@ const createApp = require('../src/app');
 const db = require('../src/config/db');
 const { runMigrations } = require('../src/config/migrator');
 const jobRepository = require('../src/repositories/jobRepository');
+const evaluationRepository = require('../src/repositories/evaluationRepository');
 const jobService = require('../src/services/jobService');
 const { NotFoundError } = require('../src/utils/errors');
 const { asHr } = require('./helpers/auth');
@@ -316,6 +317,24 @@ describe('Phase 2 - GET /api/jobs (list)', () => {
     const res = await getApi('/api/jobs');
     expect(res.body[0].mustHaveSkills).toEqual(['node', 'sql']);
     expect(res.body[0].goodToHaveSkills).toEqual(['docker']);
+  });
+
+  test('each listed job carries its candidate count (Phase 6 - the dashboard cards)', async () => {
+    const busy = (await post({ ...validJob(), title: 'Busy' })).body;
+    await post({ ...validJob(), title: 'Quiet' });
+
+    // Two evaluations, one still processing and one failed - every status counts.
+    const hook = 'https://ats.example.com/hook';
+    await evaluationRepository.createEvaluation({ jobId: busy.id, callbackUrl: hook });
+    const failed = await evaluationRepository.createEvaluation({ jobId: busy.id, callbackUrl: hook });
+    await evaluationRepository.updateEvaluation(failed.id, {
+      status: 'failed',
+      failureReason: 'unreadable_resume',
+    });
+
+    const res = await getApi('/api/jobs');
+    const byTitle = Object.fromEntries(res.body.map((j) => [j.title, j.candidateCount]));
+    expect(byTitle).toEqual({ Busy: 2, Quiet: 0 });
   });
 });
 

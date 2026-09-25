@@ -19,6 +19,9 @@ function toJob(row) {
     matchingMode: row.matching_mode,
     cutoffPercentage: row.cutoff_percentage,
     createdAt: row.created_at,
+    // Only the list query selects it (the dashboard's job cards). Number() because
+    // Postgres returns COUNT(*) as a bigint string.
+    ...(row.candidate_count !== undefined && { candidateCount: Number(row.candidate_count) }),
   };
 }
 
@@ -41,9 +44,18 @@ async function createJob(data) {
   return toJob(rows[0]);
 }
 
-/** SELECT all jobs, newest first - HR's dashboard. */
+/**
+ * SELECT all jobs, newest first - HR's dashboard. Each job carries how many
+ * evaluations it has (every status counted), so a card can say "7 candidates"
+ * without the frontend making one request per job.
+ */
 async function listJobs() {
-  const { rows } = await db.query('SELECT * FROM jobs ORDER BY created_at DESC, id DESC');
+  const { rows } = await db.query(
+    `SELECT j.*,
+            (SELECT COUNT(*) FROM evaluations e WHERE e.job_id = j.id) AS candidate_count
+       FROM jobs j
+      ORDER BY j.created_at DESC, j.id DESC`
+  );
   return rows.map(toJob);
 }
 
