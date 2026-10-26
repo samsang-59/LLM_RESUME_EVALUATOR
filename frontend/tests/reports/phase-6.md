@@ -1,14 +1,14 @@
 # Phase 6 — Test Report
 
-> Frontend (React) — every screen renders and calls the right door; loading / empty / error / processing states; login + protected-route redirect; create-job validation mirrors the backend; results end to end (backend mocked at fetch).
+> Frontend (React) — every screen renders and calls the right door; loading / empty / error / processing states; login + protected-route redirect; create-job validation mirrors the backend; results end to end (backend mocked at fetch). Phase 7 adds the refresh-token handling (`refresh.test.jsx`).
 
 | | |
 |---|---|
 | **Result** | ✅ ALL PASSED |
-| **Tests** | 130 passed / 130 total |
-| **Test files** | 9 (`frontend/tests/`) |
+| **Tests** | 147 passed / 147 total |
+| **Test files** | 10 (`frontend/tests/`) |
 | **Runner** | Vitest + React Testing Library (jsdom) |
-| **Run at** | 2026-09-25T11:33:38.118Z |
+| **Run at** | 2026-10-26T15:54:20.864Z |
 
 | File | Covers | Tests |
 |---|---|---|
@@ -21,6 +21,7 @@
 | `validation.test.js` | Client validation mirrors the backend guards | 23/23 |
 | `format.test.js` | Display helpers and the verdict sentence | 10/10 |
 | `e2e.test.jsx` | End to end — sign-up to a candidate result | 1/1 |
+| `refresh.test.jsx` | Phase 7 — refresh tokens: silent refresh, rotation, logout revokes | 17/17 |
 
 ---
 
@@ -37,7 +38,7 @@
 | 5 | createJob POSTs the job as JSON | ✅ |
 | 6 | login and register POST to the auth doors | ✅ |
 | 7 | there is no resume-submit function - that door belongs to the ATS (Model A) | ✅ |
-| 8 | logout forgets the token (JWTs are stateless - nothing to call) | ✅ |
+| 8 | logout with no refresh token forgets the access token and calls nothing | ✅ |
 
 ## Phase 6 - API layer: the JWT is attached
 
@@ -293,4 +294,49 @@
 | # | Test | Result |
 |---|---|---|
 | 130 | register -> create a job -> the ATS sends resumes -> review the list -> open one candidate | ✅ |
+
+## Phase 7 - storing the refresh token
+
+2/2 passed
+
+| # | Test | Result |
+|---|---|---|
+| 131 | login stores the refresh token next to the access token | ✅ |
+| 132 | clear() forgets both tokens | ✅ |
+
+## Phase 7 - silent refresh in the API layer
+
+9/9 passed
+
+| # | Test | Result |
+|---|---|---|
+| 133 | a 401 is answered by refreshing, then the request is retried with the new token | ✅ |
+| 134 | the rotated pair replaces the old one in storage | ✅ |
+| 135 | the user is not logged out when the refresh works | ✅ |
+| 136 | a refused refresh ends the session: the handler runs and the error surfaces | ✅ |
+| 137 | the retry happens ONCE - a second 401 is final, never a loop | ✅ |
+| 138 | no refresh token stored -> no refresh attempt, straight to logged out | ✅ |
+| 139 | three 401s at once share ONE refresh - a second use would look like theft | ✅ |
+| 140 | refreshSession() reports false when the server cannot be reached | ✅ |
+| 141 | a 401 from the login door is still just a wrong password - no refresh attempted | ✅ |
+
+## Phase 7 - the session across a reload
+
+3/3 passed
+
+| # | Test | Result |
+|---|---|---|
+| 142 | an expired access token WITH a refresh token stays signed in, and refreshes | ✅ |
+| 143 | an expired access token with NO refresh token is logged out, as before | ✅ |
+| 144 | when the refresh is refused, the user lands on /login with storage cleared | ✅ |
+
+## Phase 7 - logout revokes the refresh token on the server
+
+3/3 passed
+
+| # | Test | Result |
+|---|---|---|
+| 145 | api.logout POSTs the refresh token to /api/auth/logout and clears both | ✅ |
+| 146 | a server that cannot be reached still logs the user out locally | ✅ |
+| 147 | the Log out button revokes on the server and returns to /login | ✅ |
 

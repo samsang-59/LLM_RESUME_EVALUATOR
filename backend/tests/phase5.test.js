@@ -24,6 +24,7 @@ const tokenService = require('../src/services/tokenService');
 const authService = require('../src/services/authService');
 const jwtGuard = require('../src/middlewares/jwtGuard');
 const { UnauthorizedError, ConflictError } = require('../src/utils/errors');
+const { createAtsKey } = require('./helpers/ats');
 
 const app = createApp();
 
@@ -526,7 +527,8 @@ describe('Phase 5 - two callers, two mechanisms (doc 09)', () => {
   });
 
   test('the HR read doors do NOT accept the ATS key - a machine is not a person', async () => {
-    const res = await request(app).get('/api/jobs').set('x-api-key', config.atsApiKey);
+    const atsKey = await createAtsKey();
+    const res = await request(app).get('/api/jobs').set('x-api-key', atsKey);
 
     expect(res.status).toBe(401);
   });
@@ -574,10 +576,10 @@ describe('Phase 5 - the layers underneath', () => {
     expect(token).not.toContain('secret');
   });
 
-  test('the token expires in a day (doc 09), not never', () => {
+  test('the token expires (15 minutes since Phase 7 - it was a day in v1), not never', () => {
     const claims = jwt.decode(tokenService.generateToken({ id: 1, email: 'hr@example.com' }));
 
-    expect(claims.exp - claims.iat).toBe(24 * 60 * 60);
+    expect(claims.exp - claims.iat).toBe(15 * 60);
   });
 
   test('verifyToken throws Unauthorized for expired, foreign and malformed tokens alike', () => {

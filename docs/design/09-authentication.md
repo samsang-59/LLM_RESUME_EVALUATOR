@@ -81,10 +81,10 @@ Guards applied to existing doors:
 
 ---
 
-## Noted for later (hardening)
-- **Refresh tokens** — short access token + revocable refresh token (the "proper" way to get security *and* convenience). Overkill for v1.
-- **Per-ATS API keys** — if more than one external system integrates, issue a key each (and be able to revoke one). v1 = a single shared key in config/env.
-- (from earlier) webhook SSRF hardening; prompt-injection residual risk.
+## Noted for later (hardening) → done in Phase 7, see [doc 12](12-hardening.md)
+- **Refresh tokens** — short access token + revocable refresh token. **Built:** 15-min access JWT + 7-day refresh token, hashed in `refresh_tokens`, rotated on every use, revoked by logout (`POST /api/auth/refresh`, `POST /api/auth/logout`). Decision 3 above (1-day expiry) is superseded.
+- **Per-ATS API keys** — **Built:** one key per ATS in `ats_clients` (hashed), issued / listed / revoked by HR through `/api/ats-clients`. The single shared `.env` key is retired.
+- (from earlier) webhook SSRF hardening — built; prompt-injection residual risk — documented and accepted.
 
 ---
 

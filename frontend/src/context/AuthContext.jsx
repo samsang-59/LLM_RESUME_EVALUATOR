@@ -21,9 +21,17 @@ export function isTokenExpired(token) {
   }
 }
 
+/**
+ * A stored session is usable if the access token is still live, OR if there is a
+ * refresh token to get a new one with (Phase 7) - the access token lasts only 15
+ * minutes, so after a reload it has often expired while the login has not. The API
+ * layer refreshes it on the first request.
+ */
 function readStoredSession() {
   const token = tokenStore.get();
-  if (!token || isTokenExpired(token)) return { token: null, user: null };
+  if (!token || (isTokenExpired(token) && !tokenStore.getRefresh())) {
+    return { token: null, user: null };
+  }
   try {
     return { token, user: JSON.parse(localStorage.getItem(USER_KEY)) };
   } catch {
@@ -34,8 +42,9 @@ function readStoredSession() {
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(readStoredSession);
 
-  const startSession = useCallback(({ token, user }) => {
+  const startSession = useCallback(({ token, refreshToken, user }) => {
     tokenStore.set(token);
+    if (refreshToken) tokenStore.setRefresh(refreshToken);
     try {
       localStorage.setItem(USER_KEY, JSON.stringify(user));
     } catch {
@@ -57,8 +66,9 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (credentials) => startSession(await api.login(credentials)), [startSession]);
   const register = useCallback(async (details) => startSession(await api.register(details)), [startSession]);
 
-  // A guarded door answering 401 means the token died (expired, or the secret
-  // changed). Drop the session; ProtectedRoute then sends the user to /login.
+  // A guarded door answering 401 even after the API layer tried the refresh token
+  // means the login itself is over (expired, logged out elsewhere, or revoked).
+  // Drop the session; ProtectedRoute then sends the user to /login.
   useEffect(() => {
     setUnauthorizedHandler(logout);
     return () => setUnauthorizedHandler(() => {});

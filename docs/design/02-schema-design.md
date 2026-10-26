@@ -207,6 +207,9 @@ These are enforced by the Zod-equivalent validator during a request.
 - **SQL** as the database (one-job → many-candidates is relational)
 - Real-world flow: one resume submitted **for one job**; storing = records, not cross-job reuse
 
+## Added later
+- `users` (doc 09); `refresh_tokens` and `ats_clients` (Phase 7, [doc 12](12-hardening.md)).
+
 ## Still parked
 - Reject / send-email action on a result (a later feature)
 

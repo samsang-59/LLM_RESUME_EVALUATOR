@@ -53,6 +53,7 @@ const {
   sampleMatchAnswer,
 } = require('./helpers/fixtures');
 const { startWebhookReceiver, DEAD_URL } = require('./helpers/webhookReceiver');
+const { createAtsKey } = require('./helpers/ats');
 const { asHr } = require('./helpers/auth');
 
 const app = createApp();
@@ -124,14 +125,18 @@ async function runPipelineDirectly({
   return readEvaluation(evaluation.id);
 }
 
+// A registered ATS's key (Phase 7: one key per ATS, stored in ats_clients).
+let atsKey;
+
 /** The submit door, with the API key already attached. */
 const submit = (jobId) =>
-  request(app).post(`/api/jobs/${jobId}/evaluations`).set('x-api-key', config.atsApiKey);
+  request(app).post(`/api/jobs/${jobId}/evaluations`).set('x-api-key', atsKey);
 
 /* ============================ lifecycle ============================ */
 
 beforeAll(async () => {
   await runMigrations();
+  atsKey = await createAtsKey();
 });
 
 afterAll(async () => {
@@ -1162,7 +1167,7 @@ describe('Phase 3 - the apiKey guard on the submit door (doc 09)', () => {
 
   test('a key of the right length but the wrong bytes -> 401', async () => {
     const job = await createJob();
-    const wrong = 'x'.repeat(config.atsApiKey.length);
+    const wrong = 'x'.repeat(atsKey.length);
     const res = await request(app)
       .post(`/api/jobs/${job.id}/evaluations`)
       .set('x-api-key', wrong)
@@ -1195,16 +1200,15 @@ describe('Phase 3 - the apiKey guard on the submit door (doc 09)', () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
-  test('the guard fails CLOSED when no key is configured on the server', () => {
+  test('the guard fails CLOSED when no ATS is registered on the server', async () => {
     const apiKeyGuard = require('../src/middlewares/apiKeyGuard');
-    const original = config.atsApiKey;
-    config.atsApiKey = '';
+    await db.query('DELETE FROM ats_clients');
     try {
       const next = jest.fn();
-      apiKeyGuard({ get: () => 'anything' }, {}, next);
+      await apiKeyGuard({ get: () => atsKey }, {}, next);
       expect(next.mock.calls[0][0]).toMatchObject({ status: 401 });
     } finally {
-      config.atsApiKey = original;
+      atsKey = await createAtsKey();
     }
   });
 
@@ -1328,7 +1332,7 @@ describe('Phase 3 - the submit guard, rule by rule (doc 04 Guard 1)', () => {
   test('a malformed :jobId is 400 from the guard, not 404', async () => {
     const res = await request(app)
       .post('/api/jobs/abc/evaluations')
-      .set('x-api-key', config.atsApiKey)
+      .set('x-api-key', atsKey)
       .field('callbackUrl', DEAD_URL)
       .attach('resume', sampleResumePdf(), 'resume.pdf');
 

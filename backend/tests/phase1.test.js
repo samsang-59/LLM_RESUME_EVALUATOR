@@ -22,12 +22,14 @@ beforeEach(async () => {
 
 /* ------------------------------------------------------------------ */
 describe('Phase 1 - the migration runner', () => {
-  test('there are four migration files, ordered by their numeric prefix', () => {
+  test('the migration files are ordered by their numeric prefix (005-006 arrived in Phase 7)', () => {
     expect(migrationFiles()).toEqual([
       '001_create_users.sql',
       '002_create_jobs.sql',
       '003_create_resumes.sql',
       '004_create_evaluations.sql',
+      '005_create_refresh_tokens.sql',
+      '006_create_ats_clients.sql',
     ]);
   });
 
@@ -40,8 +42,8 @@ describe('Phase 1 - the migration runner', () => {
   test('running again is idempotent - nothing is applied twice', async () => {
     const result = await runMigrations();
     expect(result.applied).toEqual([]);
-    expect(result.skipped).toHaveLength(4);
-    expect(result.total).toBe(4);
+    expect(result.skipped).toHaveLength(6);
+    expect(result.total).toBe(6);
   });
 
   test('a broken migration rolls back and is not recorded', async () => {

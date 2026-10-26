@@ -6,9 +6,9 @@
 |---|---|
 | **Result** | ✅ ALL PASSED |
 | **Tests** | 44 passed / 44 total |
-| **Duration** | 0.24s |
+| **Duration** | 0.13s |
 | **Test file** | `tests/phase1.test.js` |
-| **Run at** | 2026-09-25T11:32:50.070Z |
+| **Run at** | 2026-10-26T15:54:11.430Z |
 
 ---
 
@@ -18,7 +18,7 @@
 
 | # | Test | Result |
 |---|---|---|
-| 1 | there are four migration files, ordered by their numeric prefix | ✅ |
+| 1 | the migration files are ordered by their numeric prefix (005-006 arrived in Phase 7) | ✅ |
 | 2 | every migration is recorded in the schema_migrations ledger | ✅ |
 | 3 | running again is idempotent - nothing is applied twice | ✅ |
 | 4 | a broken migration rolls back and is not recorded | ✅ |

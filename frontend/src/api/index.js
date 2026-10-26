@@ -4,12 +4,12 @@ import { request, tokenStore } from './client';
 
 /* ---------- auth (public doors) ---------- */
 
-/** @returns {Promise<{token: string, user: {id, username, email}}>} */
+/** @returns {Promise<{token: string, refreshToken: string, user: {id, username, email}}>} */
 export function login({ email, password }) {
   return request('/api/auth/login', { method: 'POST', body: { email, password }, auth: false });
 }
 
-/** Registering also signs you in - same { token, user } shape as login. */
+/** Registering also signs you in - same { token, refreshToken, user } shape as login. */
 export function register({ username, email, password }) {
   return request('/api/auth/register', {
     method: 'POST',
@@ -54,9 +54,20 @@ export function getEvaluationById(id) {
 }
 
 /**
- * JWTs are stateless (doc 09): the server keeps no session to end, so logging out
- * means forgetting the token here. It stays valid until it expires - parked for Phase 7.
+ * Log out: forget both tokens here, and revoke the refresh token on the server
+ * (POST /api/auth/logout, Phase 7) so it can never be traded again. The access JWT
+ * is stateless and cannot be revoked; it simply runs out within its 15 minutes.
+ *
+ * The local half happens first and unconditionally - a server that cannot be
+ * reached must not keep anyone signed in on this machine.
  */
-export function logout() {
+export async function logout() {
+  const refreshToken = tokenStore.getRefresh();
   tokenStore.clear();
+  if (!refreshToken) return;
+  await request('/api/auth/logout', {
+    method: 'POST',
+    body: { refreshToken },
+    auth: false,
+  }).catch(() => {});
 }

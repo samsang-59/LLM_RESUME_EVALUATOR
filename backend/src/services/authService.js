@@ -4,7 +4,9 @@
 // stored, never logged, and never returned.
 const bcrypt = require('bcrypt');
 const userRepository = require('../repositories/userRepository');
+const refreshTokenRepository = require('../repositories/refreshTokenRepository');
 const tokenService = require('./tokenService');
+const { generateSecret, hashSecret } = require('../utils/secrets');
 const config = require('../config/env');
 const { ConflictError, UnauthorizedError } = require('../utils/errors');
 
@@ -15,9 +17,37 @@ const { ConflictError, UnauthorizedError } = require('../utils/errors');
  */
 const DECOY_HASH = bcrypt.hashSync('no-such-user-password', config.bcryptRounds);
 
-/** What both doors answer with: the token, and the user WITHOUT the hash. */
-function authenticated(user) {
-  return { token: tokenService.generateToken(user), user };
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Issue a new refresh token for a user and store its hash (Phase 7).
+ * The plain token is returned to the caller and is not kept anywhere on our side.
+ */
+async function issueRefreshToken(userId) {
+  const refreshToken = generateSecret();
+  await refreshTokenRepository.createRefreshToken({
+    userId,
+    tokenHash: hashSecret(refreshToken),
+    expiresAt: new Date(Date.now() + config.refreshTokenTtlDays * DAY_MS).toISOString(),
+  });
+  return refreshToken;
+}
+
+/**
+ * What register, login and refresh all answer with: the pair, and the user WITHOUT
+ * the hash.
+ *
+ *   token         the short access JWT, sent on every HR request
+ *   refreshToken  the long revocable one, sent ONLY to /api/auth/refresh and /logout
+ *
+ * The access token keeps v1's name, `token`, so nothing that read it before breaks.
+ */
+async function authenticated(user) {
+  return {
+    token: tokenService.generateToken(user),
+    refreshToken: await issueRefreshToken(user.id),
+    user,
+  };
 }
 
 /**
@@ -73,4 +103,60 @@ async function login({ email, password }) {
   return authenticated(user);
 }
 
-module.exports = { register, login };
+/**
+ * Trade a refresh token for a fresh pair (Phase 7). Rotation: the token presented
+ * is spent here and a new one is handed back, so each refresh token works ONCE.
+ *
+ * That once-only rule is what lets us notice theft. If a spent token is presented
+ * again, then two parties have held it - the real user and someone who copied it -
+ * and we cannot tell which is which. So we revoke every login that user has, and
+ * both have to sign in again with the password, which only the real one knows.
+ *
+ * Every refusal is the same 401 with the same message: unknown, expired, revoked
+ * and replayed tokens all look alike from the outside.
+ *
+ * @param {string} refreshToken
+ * @returns {Promise<{token: string, refreshToken: string, user: object}>}
+ * @throws {UnauthorizedError}
+ */
+async function refresh(refreshToken) {
+  const refused = () => new UnauthorizedError('Invalid refresh token');
+
+  const stored = await refreshTokenRepository.getRefreshTokenByHash(hashSecret(refreshToken));
+  if (!stored) throw refused();
+
+  if (stored.revokedAt) {
+    await refreshTokenRepository.revokeAllForUser(stored.userId);
+    throw refused();
+  }
+
+  if (Date.parse(stored.expiresAt) <= Date.now()) throw refused();
+
+  // Spend it. Only one caller can win this - if two requests raced here with the
+  // same token, the loser is treated exactly like a replay.
+  const spent = await refreshTokenRepository.revokeRefreshToken(stored.id);
+  if (!spent) {
+    await refreshTokenRepository.revokeAllForUser(stored.userId);
+    throw refused();
+  }
+
+  const user = await userRepository.getUserById(stored.userId);
+  if (!user) throw refused();
+
+  return authenticated(user);
+}
+
+/**
+ * Log out: revoke the refresh token so it can never be traded again (Phase 7).
+ *
+ * Deliberately silent about what it found. An unknown or already-revoked token is
+ * not an error - the caller wanted it dead, and it is - and answering differently
+ * would let anyone probe which tokens exist. The access JWT cannot be revoked (it
+ * is stateless); it simply runs out within its 15 minutes.
+ */
+async function logout(refreshToken) {
+  const stored = await refreshTokenRepository.getRefreshTokenByHash(hashSecret(refreshToken));
+  if (stored) await refreshTokenRepository.revokeRefreshToken(stored.id);
+}
+
+module.exports = { register, login, refresh, logout };

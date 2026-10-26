@@ -27,8 +27,7 @@ describe('Phase 0 - config / env', () => {
     expect(config.port).toBe(4001);
     expect(config.databaseFile).toBe(':memory:');
     expect(config.jwtSecret).toBe('test-secret');
-    expect(config.jwtExpiresIn).toBe('1d');
-    expect(config.atsApiKey).toBe('test-ats-key');
+    expect(config.jwtExpiresIn).toBe('15m');
     expect(config.maxResumeSizeMb).toBe(5);
   });
 

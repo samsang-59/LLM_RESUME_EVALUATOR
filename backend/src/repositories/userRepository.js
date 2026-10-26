@@ -1,10 +1,9 @@
-// The ONLY layer that writes SQL for users (doc 07 / doc 09). Two functions, and
-// doc 09 needs no more than that: registering creates one, and looking up by email
-// serves BOTH login and the "is this email free?" check.
+// The ONLY layer that writes SQL for users (doc 07 / doc 09). Registering creates
+// one, and looking up by email serves BOTH login and the "is this email free?" check.
 //
-// There is deliberately no getUserById. A JWT is stateless (doc 09) - the guard
-// verifies a signature, it does not go to the database on every request - so no
-// door needs to fetch a user by id.
+// getUserById arrived with Phase 7's refresh door, which knows only the user id a
+// refresh token belongs to. The JWT guard still never calls it: an access token is
+// stateless (doc 09) and is verified by signature alone, with no database hit.
 const db = require('../config/db');
 const { ConflictError } = require('../utils/errors');
 
@@ -69,4 +68,13 @@ async function getUserByEmail(email, { withPasswordHash = false } = {}) {
   return user;
 }
 
-module.exports = { createUser, getUserByEmail, toUser };
+/**
+ * SELECT one user by id - the refresh door's lookup (Phase 7). Never the hash.
+ * @returns {Promise<object|null>} null when the account no longer exists
+ */
+async function getUserById(id) {
+  const { rows } = await db.query('SELECT * FROM users WHERE id = $1', [id]);
+  return toUser(rows[0]);
+}
+
+module.exports = { createUser, getUserByEmail, getUserById, toUser };

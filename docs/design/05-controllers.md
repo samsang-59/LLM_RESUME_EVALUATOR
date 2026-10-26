@@ -29,7 +29,7 @@ We POST the result to the caller's callbackUrl   ← the webhook
 
 Two ripples this created (folded into Docs 02 & 04):
 - **`status`** field on evaluations → `processing` / `completed` / `failed`
-- **`callbackUrl`** → sent per submission, **validated** (valid URL; https; block internal addresses = SSRF guard, harden later), **stored** on the evaluation record
+- **`callbackUrl`** → sent per submission, **validated** (valid URL; https; block internal addresses = SSRF guard, built in Phase 7 — [doc 12](12-hardening.md)), **stored** on the evaluation record
 
 ---
 
@@ -95,7 +95,7 @@ middleware) turns them into the right HTTP status:
 - Errors → central error handler → correct status code
 
 ## Noted for later
-- Webhook hardening: https-only + block internal addresses (SSRF)
+- ~~Webhook hardening: https-only + block internal addresses (SSRF)~~ → done in Phase 7, [doc 12](12-hardening.md)
 - Webhook retries if the caller's URL is temporarily down (service-layer concern)
 
 ---
