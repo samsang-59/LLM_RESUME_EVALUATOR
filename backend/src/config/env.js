@@ -23,6 +23,14 @@ function num(name, fallback) {
   return Number.isFinite(value) ? value : fallback;
 }
 
+// On/off switches. Only the literal word "true" turns one on, so a typo or an empty
+// value leaves the switch in its safe position rather than guessing.
+function bool(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return fallback;
+  return raw.trim().toLowerCase() === 'true';
+}
+
 const config = {
   nodeEnv: NODE_ENV,
   isTest: NODE_ENV === 'test',
@@ -40,15 +48,18 @@ const config = {
   // published in this repository - i.e. anyone could mint one. So it is required
   // there, and only there, so a fresh clone still runs.
   jwtSecret: NODE_ENV === 'production' ? required('JWT_SECRET') : process.env.JWT_SECRET || 'dev-secret',
-  // One day (doc 09): a JWT cannot be withdrawn once issued, so the expiry is what
-  // bounds the damage if one leaks.
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
+  // The ACCESS token (Phase 7). A JWT cannot be withdrawn once issued, so its expiry
+  // is what bounds the damage if one leaks - 15 minutes instead of v1's one day.
+  // HR does not notice: the frontend quietly trades the refresh token for a new one.
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '15m',
+  // The REFRESH token (Phase 7): how long HR stays signed in without typing a
+  // password. Unlike the JWT it lives in our database, so logout really ends it.
+  refreshTokenTtlDays: num('REFRESH_TOKEN_TTL_DAYS', 7),
   // bcrypt's cost factor. Deliberate slowness - it is what makes brute-forcing a
   // stolen hash table expensive. 10 is the usual production floor. Tests default to
   // 4 (and .env.test says so explicitly): what they check is our code, not bcrypt's
   // arithmetic, and 10 rounds x a whole auth suite is minutes of pure waiting.
   bcryptRounds: num('BCRYPT_ROUNDS', NODE_ENV === 'test' ? 4 : 10),
-  atsApiKey: process.env.ATS_API_KEY || '',
   openaiApiKey: process.env.OPENAI_API_KEY || '',
   maxResumeSizeMb: parseInt(process.env.MAX_RESUME_SIZE_MB || '5', 10),
 
@@ -71,6 +82,10 @@ const config = {
   webhookMaxRetries: num('WEBHOOK_MAX_RETRIES', 2),
   webhookRetryBaseMs: num('WEBHOOK_RETRY_BASE_MS', 300),
   webhookTimeoutMs: num('WEBHOOK_TIMEOUT_MS', 10000),
+  // The SSRF guard (Phase 7): callbackUrl must be https and must not point inside
+  // our network. This switch turns that off so a developer (and the test suite) can
+  // run a receiver on http://127.0.0.1. OFF unless explicitly set to "true".
+  webhookAllowInsecure: bool('WEBHOOK_ALLOW_INSECURE', false),
 
   // Exposed so a test can assert the missing-var guard actually throws.
   required,

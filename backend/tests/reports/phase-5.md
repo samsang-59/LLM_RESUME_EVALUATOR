@@ -6,9 +6,9 @@
 |---|---|
 | **Result** | ✅ ALL PASSED |
 | **Tests** | 62 passed / 62 total |
-| **Duration** | 1.77s |
+| **Duration** | 0.90s |
 | **Test file** | `tests/phase5.test.js` |
-| **Run at** | 2026-09-25T11:32:50.064Z |
+| **Run at** | 2026-10-26T15:54:11.428Z |
 
 ---
 
@@ -99,7 +99,7 @@
 |---|---|---|
 | 52 | a token round-trips: sign it, verify it, get the user back | ✅ |
 | 53 | the payload carries the minimum - never the password or the hash | ✅ |
-| 54 | the token expires in a day (doc 09), not never | ✅ |
+| 54 | the token expires (15 minutes since Phase 7 - it was a day in v1), not never | ✅ |
 | 55 | verifyToken throws Unauthorized for expired, foreign and malformed tokens alike | ✅ |
 | 56 | a token whose subject is not a real id is refused, however well signed | ✅ |
 | 57 | jwtGuard attaches req.user and calls next with nothing | ✅ |

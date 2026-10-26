@@ -6,9 +6,9 @@
 |---|---|
 | **Result** | ✅ ALL PASSED |
 | **Tests** | 116 passed / 116 total |
-| **Duration** | 5.78s |
+| **Duration** | 1.77s |
 | **Test file** | `tests/phase3.test.js` |
-| **Run at** | 2026-09-25T11:32:50.047Z |
+| **Run at** | 2026-10-26T15:54:11.421Z |
 
 ---
 
@@ -164,7 +164,7 @@
 | 88 | a key of the right length but the wrong bytes -> 401 | ✅ |
 | 89 | an empty x-api-key -> 401 | ✅ |
 | 90 | an unauthorised call starts nothing: no row, no file, no LLM call | ✅ |
-| 91 | the guard fails CLOSED when no key is configured on the server | ✅ |
+| 91 | the guard fails CLOSED when no ATS is registered on the server | ✅ |
 | 92 | the correct key is accepted | ✅ |
 
 ## Phase 3 - the submit guard, rule by rule (doc 04 Guard 1)

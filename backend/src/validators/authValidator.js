@@ -56,4 +56,17 @@ const loginSchema = z.object({
   password: z.string({ error: 'password must be a string' }).min(1, 'password is required'),
 });
 
-module.exports = { registerSchema, loginSchema, MAX_PASSWORD_BYTES };
+/**
+ * The refresh and logout doors (Phase 7) both take the refresh token in the body.
+ * Shape only: whether it is a real, live token is the service's lookup. The upper
+ * bound just refuses junk before it is hashed - ours are 43 characters.
+ */
+const refreshTokenSchema = z.object({
+  refreshToken: z
+    .string({ error: 'refreshToken is required' })
+    .trim()
+    .min(1, 'refreshToken is required')
+    .max(512, 'refreshToken is not a valid token'),
+});
+
+module.exports = { registerSchema, loginSchema, refreshTokenSchema, MAX_PASSWORD_BYTES };

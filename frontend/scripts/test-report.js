@@ -1,4 +1,6 @@
-// Runs the frontend suite and writes the Phase 6 report into tests/reports/phase-6.md.
+// Runs the frontend suite and writes its report into tests/reports/phase-6.md. The
+// frontend was built in Phase 6; Phase 7 added the silent token refresh, whose tests
+// are listed in the same report.
 //
 // Like the backend's scripts/test-report.js, the report is generated from the test
 // runner's own JSON output (Vitest emits Jest's format), never hand-written, so it
@@ -26,6 +28,7 @@ const FILES = {
   'validation.test.js': 'Client validation mirrors the backend guards',
   'format.test.js': 'Display helpers and the verdict sentence',
   'e2e.test.jsx': 'End to end — sign-up to a candidate result',
+  'refresh.test.jsx': 'Phase 7 — refresh tokens: silent refresh, rotation, logout revokes',
 };
 
 fs.mkdirSync(REPORTS_DIR, { recursive: true });
@@ -47,7 +50,7 @@ const failed = all.filter((t) => t.status === 'failed').length;
 const lines = [
   '# Phase 6 — Test Report',
   '',
-  '> Frontend (React) — every screen renders and calls the right door; loading / empty / error / processing states; login + protected-route redirect; create-job validation mirrors the backend; results end to end (backend mocked at fetch).',
+  '> Frontend (React) — every screen renders and calls the right door; loading / empty / error / processing states; login + protected-route redirect; create-job validation mirrors the backend; results end to end (backend mocked at fetch). Phase 7 adds the refresh-token handling (`refresh.test.jsx`).',
   '',
   '| | |',
   '|---|---|',

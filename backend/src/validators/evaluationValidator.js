@@ -10,6 +10,7 @@
 const { z } = require('zod');
 const config = require('../config/env');
 const { detectFileType } = require('../utils/fileType');
+const { checkCallbackUrl } = require('../utils/netSafety');
 
 const MAX_BYTES = config.maxResumeSizeMb * 1024 * 1024;
 
@@ -58,25 +59,23 @@ const resumeFileSchema = z
  * The rest of the submission. callbackUrl is where we POST the outcome once the
  * background run finishes (doc 05), so it is required and must be a real URL.
  *
- * Parked for Phase 7 (doc 04): https-only, and blocking internal addresses so this
- * cannot be pointed at 169.254.169.254 or localhost - the SSRF hardening.
+ * Phase 7 added the SSRF rule (doc 04): https only, and never an internal address -
+ * so this cannot be pointed at 169.254.169.254 or localhost and turn our server into
+ * somebody's way into our own network. This is the first of two checks; the second
+ * runs at send time against the address the name really resolves to (utils/netSafety).
+ *
+ * The rule is read from config on every request rather than fixed at load, so the
+ * development switch (WEBHOOK_ALLOW_INSECURE) is honoured wherever it is set.
  */
 const submitEvaluationSchema = z.object({
   callbackUrl: z
     .string({ error: 'callbackUrl is required' })
     .trim()
     .min(1, 'callbackUrl is required')
-    .refine((value) => {
-      let url;
-      try {
-        url = new URL(value);
-      } catch {
-        return false;
-      }
-      // A "valid URL" for a webhook means one we can POST to. `javascript:` and
-      // `file:` parse perfectly well and are not that.
-      return url.protocol === 'http:' || url.protocol === 'https:';
-    }, 'callbackUrl must be a valid http(s) URL'),
+    .superRefine((value, ctx) => {
+      const problem = checkCallbackUrl(value, { allowInsecure: config.webhookAllowInsecure });
+      if (problem) ctx.addIssue({ code: 'custom', message: problem });
+    }),
 });
 
 /* ------------------------------------------------------------------ *

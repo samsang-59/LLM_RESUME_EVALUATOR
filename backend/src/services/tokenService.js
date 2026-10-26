@@ -3,9 +3,9 @@
 // Stateless by design: we store nothing. A token is a signed claim, and the guard
 // only checks the signature and the expiry - no session table, no database hit per
 // request. The cost of that is that a JWT cannot be withdrawn once issued, which is
-// exactly why the expiry is short (one day, doc 09): it bounds the damage a leaked
-// token can do without making HR log in every hour. Revocable refresh tokens are
-// the proper fix and are parked for Phase 7.
+// exactly why the expiry is short: it bounds the damage a leaked token can do.
+// Phase 7 cut it from one day to 15 minutes and added the other half of the pair,
+// a revocable refresh token (authService), so HR stays signed in all the same.
 const jwt = require('jsonwebtoken');
 const config = require('./../config/env');
 const { UnauthorizedError } = require('../utils/errors');

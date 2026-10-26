@@ -2,49 +2,35 @@
 //
 // Two kinds of caller, two mechanisms. HR is a human in a browser and proves who
 // they are with a JWT (Phase 5). The ATS is a machine talking to a machine - there
-// is nobody to log in - so it proves itself with a shared secret in a header.
+// is nobody to log in - so it proves itself with a secret key in a header.
+//
+// Phase 7 replaced v1's single shared key (ATS_API_KEY in .env) with one key per
+// ATS, stored as a hash in ats_clients and issued by HR. Company A has key A,
+// company B has key B; revoking one leaves the other working.
 //
 // This guard protects exactly one door: POST /api/jobs/:jobId/evaluations. It is the
 // only door an outside system may push work through, and every request behind it
 // costs us two LLM calls, so it is checked before the upload is even read.
-const crypto = require('crypto');
-const config = require('../config/env');
+const atsClientService = require('../services/atsClientService');
 const { UnauthorizedError } = require('../utils/errors');
 
 const HEADER = 'x-api-key';
 
-/**
- * Compare without leaking the answer through timing.
- *
- * A plain `===` on strings stops at the first differing character, so how long it
- * takes tells an attacker how much of the key they guessed right - enough to
- * recover it one character at a time. timingSafeEqual always looks at every byte.
- * Lengths must match first, since the function refuses unequal buffers (and a
- * length difference is not a secret worth protecting).
- */
-function matches(provided, expected) {
-  const a = Buffer.from(provided);
-  const b = Buffer.from(expected);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
-}
-
-function apiKeyGuard(req, res, next) {
-  // No key configured means the door cannot be opened by anybody. Failing CLOSED is
-  // the only safe reading of a missing secret - the alternative would quietly turn
-  // an unconfigured deployment into an open one.
-  if (!config.atsApiKey) {
-    return next(new UnauthorizedError('Resume submission is not configured on this server'));
-  }
-
+async function apiKeyGuard(req, res, next) {
   const provided = req.get(HEADER);
   if (!provided) {
     return next(new UnauthorizedError(`Missing ${HEADER} header`));
   }
 
-  if (!matches(provided, config.atsApiKey)) {
+  // Unknown and revoked keys get the same answer. Telling them apart would only
+  // help someone holding an old key learn that it once worked.
+  const client = await atsClientService.authenticate(provided);
+  if (!client) {
     return next(new UnauthorizedError('Invalid API key'));
   }
 
+  // Which ATS is knocking, for anything downstream that wants to know.
+  req.atsClient = { id: client.id, name: client.name };
   return next();
 }
 

@@ -19,6 +19,7 @@ result. Designed layer by layer, backend first, then frontend.
 | 09 | [Authentication](09-authentication.md) | JWT (HR) + API key (ATS), across all layers |
 | 10 | [Frontend Architecture](10-frontend-architecture.md) | components, API layer, routing, state, auth handling |
 | 11 | [Phase Plan](11-phase-plan.md) | the 8 build phases and the test round that closes each one |
+| 12 | [Hardening](12-hardening.md) | Phase 7: SSRF guard, refresh tokens, per-ATS keys, token-storage review, prompt-injection note |
 
 ## Tech stack
 - **Backend:** Node.js + Express
@@ -35,12 +36,14 @@ result. Designed layer by layer, backend first, then frontend.
 - **Async + webhook, read-door as backup** — nothing is lost if delivery fails.
 
 ## Status
-Design complete (docs 01-10). Implementation is underway against the
-[phase plan](11-phase-plan.md) - phases 0 through 3 are done.
+Design complete (docs 01-10, plus doc 12 for Phase 7). All eight phases of the
+[phase plan](11-phase-plan.md) - 0 through 7 - are implemented.
 
-## Parked / harden later
+## Parked
 - Reject / send-email action on a result
-- Webhook hardening (https-only + block internal addresses / SSRF)
-- Refresh tokens; per-ATS API keys
-- Frontend token storage (httpOnly cookie vs localStorage)
-- Prompt-injection residual risk (injection hidden inside a skill name)
+
+## Hardened in Phase 7 ([doc 12](12-hardening.md))
+- Webhook hardening (https-only + block internal addresses / SSRF) — built
+- Refresh tokens; per-ATS API keys — built
+- Frontend token storage (httpOnly cookie vs localStorage) — reviewed, kept localStorage
+- Prompt-injection residual risk (injection hidden inside a skill name) — documented, accepted

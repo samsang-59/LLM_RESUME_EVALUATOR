@@ -116,8 +116,8 @@ overall %       = (skillScore × 0.75 + experienceScore × 0.25) × 100
 - Webhook on both outcomes, retry-classify delivery, GET door as backup
 
 ## Noted for later
-- Webhook hardening (https-only + block internal addresses / SSRF)
-- Prompt-injection residual risk (injection hidden *inside* a skill name) — small, accepted
+- ~~Webhook hardening (https-only + block internal addresses / SSRF)~~ → done in Phase 7: checked at submission and again at send time against the resolved address ([doc 12](12-hardening.md) §1)
+- Prompt-injection residual risk (injection hidden *inside* a skill name) — small, accepted; written up in [doc 12](12-hardening.md) §5
 
 ---
 

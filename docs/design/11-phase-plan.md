@@ -51,6 +51,7 @@ Setup → API layer → AuthContext → login/register → dashboard → create 
 ### Phase 7 — Hardening (parked items)
 Webhook SSRF (https-only + block internal), refresh tokens, per-ATS keys, token-storage review, prompt-injection residual note.
 **Test:** per-item checks.
+**Decisions:** recorded in [doc 12](12-hardening.md).
 
 ---
 

@@ -40,10 +40,10 @@ describe('Phase 6 - API layer: each function calls the right door', () => {
     expect(Object.keys(api).some((name) => /submit|upload|resume/i.test(name))).toBe(false);
   });
 
-  test('logout forgets the token (JWTs are stateless - nothing to call)', () => {
+  test('logout with no refresh token forgets the access token and calls nothing', async () => {
     const { fetchMock } = mockBackend({});
     tokenStore.set('abc');
-    api.logout();
+    await api.logout();
     expect(tokenStore.get()).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });

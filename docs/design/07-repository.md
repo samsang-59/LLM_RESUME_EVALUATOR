@@ -82,6 +82,8 @@ resumeRepository:      createResume
 evaluationRepository:  createEvaluation · updateEvaluation · getEvaluationById · listEvaluationsByJob(filters)
 ```
 
+Added later: `userRepository` (doc 09; `getUserById` in Phase 7), `refreshTokenRepository` and `atsClientRepository` (Phase 7, [doc 12](12-hardening.md)).
+
 ---
 
 ## Settled ✅

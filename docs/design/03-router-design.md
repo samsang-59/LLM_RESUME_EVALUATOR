@@ -96,6 +96,8 @@ Full detail of a single candidate's result.
 | 5 | GET | `/api/jobs/:jobId/evaluations` | all candidates for a job | read |
 | 6 | GET | `/api/evaluations/:id` | one candidate's full result | read |
 
+Added later: the auth doors (doc 09 — register, login; Phase 7 — refresh, logout) and the per-ATS key doors (`/api/ats-clients`, Phase 7 — [doc 12](12-hardening.md)).
+
 ---
 
 ## Settled ✅

@@ -87,7 +87,8 @@ Two different routers: **frontend routes show pages; backend routes return JSON.
 - **API layer** attaches the token to every request (`Authorization: Bearer`).
 - **ProtectedRoute** — a wrapper around HR screens: no valid token → **redirect to `/login`.** Stops a logged-out person reaching `/dashboard`.
 - **Logout** — clear the stored token + reset the auth Context.
-- **Token storage:** v1 = `localStorage` (simple). Honest tradeoff — it's readable by JavaScript, so vulnerable to XSS; the more secure option is an **httpOnly cookie** (needs CSRF handling). → **harden later.**
+- **Token storage:** v1 = `localStorage` (simple). Honest tradeoff — it's readable by JavaScript, so vulnerable to XSS; the more secure option is an **httpOnly cookie** (needs CSRF handling). → **Reviewed in Phase 7: kept `localStorage`** for both the access and the refresh token; reasoning in [doc 12](12-hardening.md) §4.
+- **Silent refresh (Phase 7):** the access token lasts 15 minutes. On a 401 the API layer trades the refresh token for a new pair once (concurrent 401s share one refresh) and retries; only a refused refresh logs the user out. Logout also revokes the refresh token on the server.
 
 ---
 
@@ -111,7 +112,7 @@ src/
 - Auth handling: store token, attach it, ProtectedRoute, logout
 
 ## Noted for later
-- Token storage hardening (httpOnly cookie vs localStorage)
+- ~~Token storage hardening (httpOnly cookie vs localStorage)~~ → reviewed in Phase 7, kept `localStorage` ([doc 12](12-hardening.md) §4)
 - Visual/UX design → **Claude Design** (Sangram will do this separately)
 
 ---
